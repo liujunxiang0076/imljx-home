@@ -10,12 +10,16 @@
 - **UI**: Vue 3 (v3.5.13)
 - **路由**: Vue Router (v4.5.0)
 - **包管理**: pnpm (v10.6.2)
+- **HTTP**: h3 (v1.15.1)
 
 ## 功能特点
 
 - 响应式设计
 - SEO优化
 - 快速加载
+- 多搜索引擎支持（Google、Bing、百度）
+- 必应每日壁纸集成
+- 优雅的动画效果
 
 ## 开发环境
 
@@ -68,6 +72,20 @@ pnpm build
 - `nuxt.config.ts` - Nuxt配置
 - `app.vue` - 应用入口
 - `vercel.json` - Vercel部署配置
+- `server/api/bing-image.ts` - 必应壁纸API配置
+
+## API
+
+### 必应每日壁纸
+
+```typescript
+GET /api/bing-image
+```
+
+返回必应每日壁纸信息，包含：
+- 图片URL
+- 版权信息
+- 标题
 
 ## 许可证
 

@@ -1,5 +1,4 @@
 {
-  "framework": "nuxt",
   "buildCommand": "pnpm run build",
   "installCommand": "pnpm install",
   "regions": ["hkg1"]

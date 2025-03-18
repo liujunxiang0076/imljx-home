@@ -15,8 +15,7 @@ const formatTime = () => {
   const now = new Date()
   const hours = String(now.getHours()).padStart(2, '0')
   const minutes = String(now.getMinutes()).padStart(2, '0')
-  const seconds = String(now.getSeconds()).padStart(2, '0')
-  currentTime.value = `${hours}:${minutes}:${seconds}`
+  currentTime.value = `${hours}:${minutes}`
 }
 
 // 组件挂载时启动定时器
@@ -35,13 +34,15 @@ onUnmounted(() => {
 
 <style scoped>
 .time-display {
-  font-size: 3.5rem;
+  font-size: 4.5rem;
   font-weight: 300;
   color: white;
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-  margin-bottom: 2rem;
+  margin-bottom: 1.5rem;
   font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  letter-spacing: 1px;
-  opacity: 0.9;
+  letter-spacing: 2px;
+  opacity: 0.95;
+  position: relative;
+  z-index: 1;
 }
 </style> 

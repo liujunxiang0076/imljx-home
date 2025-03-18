@@ -1,17 +1,18 @@
 <template>
   <div class="search-container" :style="backgroundStyle">
-    <TimeDisplay />
     <div class="loading-overlay" v-if="isLoading">
       <div class="loader"></div>
     </div>
-    
-    <div class="search-wrapper" :class="{ 'expanded': isExpanded }">
-      <div class="search-bar" 
-           ref="searchBarRef"
-           @mouseenter="expandSearchBar" 
-           @mouseleave="collapseSearchBar"
-           :class="{ 'expanded': isExpanded }">
-        
+    <div class="image-credit" v-if="imageInfo">
+      {{ imageInfo.copyright }}
+    </div>
+    <div class="search-content">
+      <TimeDisplay />
+      <div 
+        class="search-bar" 
+        :class="{ 'expanded': isExpanded }" 
+        ref="searchBarRef"
+      >
         <!-- 使用HeadlessUI的Listbox组件实现搜索引擎选择 -->
         <div class="engine-selector-container">
           <Listbox 
@@ -95,6 +96,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { Listbox, ListboxButton, ListboxOptions, ListboxOption } from '@headlessui/vue'
 import { ChevronDownIcon, CheckIcon, MagnifyingGlassIcon } from '@heroicons/vue/20/solid'
 import TimeDisplay from '../TimeDisplay.vue'
+import { onClickOutside } from '@vueuse/core'
 
 // 搜索引擎配置
 const searchEngines = [
@@ -216,14 +218,12 @@ const handleDropdownClose = () => {
   isEngineClicked.value = false
 }
 
-// 点击外部区域时收起搜索栏
-const handleClickOutside = (event) => {
-  if (searchBarRef.value && !searchBarRef.value.contains(event.target)) {
-    if (!searchQuery.value.trim() && !isDropdownOpen.value) {
-      isExpanded.value = false
-    }
+// 点击外部时收起搜索栏
+onClickOutside(searchBarRef, () => {
+  if (isExpanded.value && !isDropdownOpen.value) {
+    collapseSearchBar()
   }
-}
+})
 
 // 获取Bing每日图片
 const fetchBingImage = async () => {
@@ -256,12 +256,11 @@ const fetchBingImage = async () => {
 // 组件挂载时获取背景图片
 onMounted(() => {
   fetchBingImage()
-  document.addEventListener('click', handleClickOutside)
 })
 
 // 组件卸载时移除事件监听
 onUnmounted(() => {
-  document.removeEventListener('click', handleClickOutside)
+  // Remove event listeners and clean up resources
 })
 </script>
 
@@ -270,7 +269,6 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
   min-height: 100vh;
   padding: 1rem;
   position: relative;
@@ -278,6 +276,26 @@ onUnmounted(() => {
   background-position: center;
   background-repeat: no-repeat;
   transition: background-image 0.3s ease;
+}
+
+.search-container::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.2) 0%, rgba(0, 0, 0, 0) 25%);
+  pointer-events: none;
+}
+
+.search-content {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 25vh;
+  z-index: 2;
 }
 
 .loading-overlay {

@@ -103,16 +103,16 @@ import WelcomeToast from '../WelcomeToast.vue'
 // 搜索引擎配置
 const searchEngines = [
   { 
-    name: 'google', 
-    label: 'Google', 
-    url: 'https://www.google.com/search?q=',
-    icon: 'https://www.google.com/favicon.ico'
-  },
-  { 
     name: 'baidu', 
     label: '百度', 
     url: 'https://www.baidu.com/s?wd=',
     icon: 'https://www.baidu.com/favicon.ico'
+  },
+  { 
+    name: 'google', 
+    label: 'Google', 
+    url: 'https://www.google.com/search?q=',
+    icon: 'https://www.google.com/favicon.ico'
   },
   { 
     name: 'bing', 
@@ -130,7 +130,7 @@ const searchEngines = [
 
 // 响应式状态
 const searchQuery = ref('')
-const selectedEngine = ref('google')
+const selectedEngine = ref('baidu')
 const backgroundImage = ref('')
 const imageInfo = ref(null)
 const isLoading = ref(true)

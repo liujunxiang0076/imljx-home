@@ -1,5 +1,6 @@
 <template>
   <div class="search-container" :style="backgroundStyle">
+    <TimeDisplay />
     <div class="loading-overlay" v-if="isLoading">
       <div class="loader"></div>
     </div>
@@ -93,6 +94,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { Listbox, ListboxButton, ListboxOptions, ListboxOption } from '@headlessui/vue'
 import { ChevronDownIcon, CheckIcon, MagnifyingGlassIcon } from '@heroicons/vue/20/solid'
+import TimeDisplay from '../TimeDisplay.vue'
 
 // 搜索引擎配置
 const searchEngines = [
@@ -265,16 +267,17 @@ onUnmounted(() => {
 
 <style scoped>
 .search-container {
-  width: 100%;
-  height: 100vh;
   display: flex;
-  justify-content: center;
+  flex-direction: column;
   align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 1rem;
+  position: relative;
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
-  position: relative;
-  transition: background-image 0.5s ease;
+  transition: background-image 0.3s ease;
 }
 
 .loading-overlay {

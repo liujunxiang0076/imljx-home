@@ -1,5 +1,6 @@
 <template>
   <div class="search-container" :style="backgroundStyle">
+    <WelcomeToast />
     <div class="loading-overlay" v-if="isLoading">
       <div class="loader"></div>
     </div>
@@ -97,6 +98,7 @@ import { Listbox, ListboxButton, ListboxOptions, ListboxOption } from '@headless
 import { ChevronDownIcon, CheckIcon, MagnifyingGlassIcon } from '@heroicons/vue/20/solid'
 import TimeDisplay from '../TimeDisplay.vue'
 import { onClickOutside } from '@vueuse/core'
+import WelcomeToast from '../WelcomeToast.vue'
 
 // 搜索引擎配置
 const searchEngines = [

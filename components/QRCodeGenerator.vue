@@ -172,7 +172,7 @@ const deleteQR = (index: number) => {
   padding: 24px;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 16px;
 }
 
 .fixed-section {
@@ -180,7 +180,7 @@ const deleteQR = (index: number) => {
   top: 0;
   z-index: 10;
   background: #f0f2f5;
-  padding-bottom: 24px;
+  padding-bottom: 16px;
   width: 100%;
 }
 
@@ -335,6 +335,7 @@ const deleteQR = (index: number) => {
 @media (max-width: 768px) {
   .qr-generator {
     padding: 16px;
+    gap: 12px;
   }
   
   .input-card,
@@ -363,6 +364,10 @@ const deleteQR = (index: number) => {
   
   .qr-item {
     padding: 20px;
+  }
+  
+  .fixed-section {
+    padding-bottom: 12px;
   }
 }
 </style> 

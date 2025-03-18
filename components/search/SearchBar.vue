@@ -282,7 +282,48 @@ onUnmounted(() => {
 })
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
+// 变量定义
+$search-bar-height: 3rem;
+$search-bar-radius: 2rem;
+$search-bar-width: 350px;
+$search-bar-expanded-width: 750px;
+$transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
+
+// Mixins
+@mixin flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@mixin absolute-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+
+// 动画关键帧
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes placeholderTransition {
+  0% {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  100% {
+    opacity: 0.8;
+    transform: translateY(0);
+    color: rgba(0, 0, 0, 0.7);
+  }
+}
+
+// 主要样式
 .search-container {
   display: flex;
   flex-direction: column;
@@ -294,17 +335,13 @@ onUnmounted(() => {
   background-position: center;
   background-repeat: no-repeat;
   transition: background-image 0.3s ease;
-}
 
-.search-container::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.2) 0%, rgba(0, 0, 0, 0) 25%);
-  pointer-events: none;
+  &::before {
+    content: '';
+    @include absolute-fill;
+    background: linear-gradient(to bottom, rgba(0, 0, 0, 0.2) 0%, rgba(0, 0, 0, 0) 25%);
+    pointer-events: none;
+  }
 }
 
 .search-content {
@@ -317,101 +354,90 @@ onUnmounted(() => {
 }
 
 .loading-overlay {
+  @include absolute-fill;
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
   background-color: rgba(255, 255, 255, 0.8);
-  display: flex;
-  justify-content: center;
-  align-items: center;
+  @include flex-center;
   z-index: 1000;
+
+  .loader {
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #3498db;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+  }
 }
 
-.loader {
-  border: 4px solid #f3f3f3;
-  border-top: 4px solid #3498db;
-  border-radius: 50%;
-  width: 40px;
-  height: 40px;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-/* 淡入淡出动画 */
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.3s ease;
-}
-
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-}
-
-/* 淡入淡出+滑动动画 */
-.fade-slide-enter-active,
-.fade-slide-leave-active {
-  transition: opacity 0.3s ease, transform 0.3s ease;
-}
-
-.fade-slide-enter-from,
-.fade-slide-leave-to {
-  opacity: 0;
-  transform: translateX(-10px);
-}
-
-.search-wrapper {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  transition: all 0.3s ease;
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-}
-
-.search-wrapper.expanded {
-  background-color: transparent;
-  border-radius: 1rem;
-  box-shadow: none;
-  backdrop-filter: none;
-  padding: 0;
-  max-width: 600px;
-  width: 100%;
-}
-
+// 搜索栏样式
 .search-bar {
   display: flex;
   align-items: center;
-  height: 3rem;
-  border-radius: 2rem;
+  height: $search-bar-height;
+  border-radius: $search-bar-radius;
   background-color: rgba(255, 255, 255, 0.6);
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  width: 350px;
+  transition: all 0.3s $transition-timing;
+  width: $search-bar-width;
   overflow: visible;
   position: relative;
   padding-left: 0.2rem;
   will-change: width, background-color;
+
+  &.expanded {
+    width: $search-bar-expanded-width;
+    background-color: rgba(255, 255, 255, 0.95);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  }
+
+  &:hover {
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  }
+
+  input {
+    flex: 1;
+    height: 100%;
+    padding: 0 1rem 0 0.5rem;
+    border: none;
+    font-size: 1.1rem;
+    outline: none;
+    background-color: transparent;
+    transition: all 0.3s $transition-timing;
+    opacity: 0.8;
+    margin-left: 0.2rem;
+    text-align: left;
+
+    &::placeholder {
+      transition: all 0.3s $transition-timing;
+      opacity: 0.7;
+      transform: translateY(0);
+      color: rgba(0, 0, 0, 0.6);
+    }
+
+    &:focus::placeholder {
+      opacity: 0;
+      transform: translateY(-20px);
+    }
+
+    &.engine-name-transition::placeholder {
+      animation: placeholderTransition 0.3s $transition-timing forwards;
+    }
+  }
+
+  &.expanded input {
+    opacity: 1;
+    text-align: left;
+
+    &::placeholder {
+      opacity: 0.8;
+      transform: translateY(0);
+      color: rgba(0, 0, 0, 0.7);
+    }
+  }
 }
 
-.search-bar.expanded {
-  width: 750px;
-  background-color: rgba(255, 255, 255, 0.95);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-}
-
-.search-bar:hover {
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-}
-
+// 搜索引擎选择器样式
 .engine-selector-container {
   position: relative;
   height: 100%;
@@ -421,14 +447,8 @@ onUnmounted(() => {
   z-index: 10;
 }
 
-.engine-selector {
-  height: 100%;
-}
-
 .selected-engine {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  @include flex-center;
   height: 40px;
   width: 40px;
   padding: 0;
@@ -438,21 +458,23 @@ onUnmounted(() => {
   transition: all 0.2s ease;
   border: none;
   border-radius: 50%;
-}
 
-.selected-engine:hover,
-.selected-engine:focus {
-  background-color: transparent;
-}
+  &:hover,
+  &:focus {
+    background-color: transparent;
+  }
 
-.selected-engine:active {
-  background-color: rgba(210, 210, 210, 0.9);
+  &:active {
+    background-color: rgba(210, 210, 210, 0.9);
+  }
+
+  &.with-bg {
+    background-color: rgba(230, 230, 230, 0.7);
+  }
 }
 
 .engine-button-content {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  @include flex-center;
   position: relative;
   width: 100%;
   height: 100%;
@@ -463,21 +485,13 @@ onUnmounted(() => {
   height: 22px;
   object-fit: contain;
   transition: transform 0.3s ease;
+
+  .expanded & {
+    transform: scale(1.1);
+  }
 }
 
-.expanded .engine-icon {
-  transform: scale(1.1);
-}
-
-.dropdown-icon {
-  width: 0.7rem;
-  height: 0.7rem;
-  margin-left: 0.2rem;
-  color: #666;
-  opacity: 0.7;
-  transition: transform 0.3s ease;
-}
-
+// 下拉菜单样式
 .engine-dropdown {
   position: absolute;
   top: calc(100% + 5px);
@@ -500,21 +514,21 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-}
 
-.engine-option:hover {
-  background-color: rgba(230, 230, 230, 0.7);
-}
+  &:hover {
+    background-color: rgba(230, 230, 230, 0.7);
+  }
 
-.engine-option.selected {
-  font-weight: 500;
-  color: #4285f4;
-}
+  &.selected {
+    font-weight: 500;
+    color: #4285f4;
+  }
 
-.engine-option-content {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
+  &-content {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
 }
 
 .check-icon {
@@ -523,92 +537,34 @@ onUnmounted(() => {
   color: #4285f4;
 }
 
-.search-bar input {
-  flex: 1;
-  height: 100%;
-  padding: 0 1rem 0 0.5rem;
-  border: none;
-  font-size: 1.1rem;
-  outline: none;
-  background-color: transparent;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  opacity: 0.8;
-  margin-left: 0.2rem;
-  text-align: left;
-}
-
-.search-bar input::placeholder {
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  opacity: 0.7;
-  transform: translateY(0);
-  color: rgba(0, 0, 0, 0.6);
-}
-
-.search-bar.expanded input::placeholder {
-  opacity: 0.8;
-  transform: translateY(0);
-  color: rgba(0, 0, 0, 0.7);
-}
-
-.search-bar input:focus::placeholder {
-  opacity: 0;
-  transform: translateY(-20px);
-}
-
-.search-bar input.engine-name-transition::placeholder {
-  animation: placeholderTransition 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-}
-
-@keyframes placeholderTransition {
-  0% {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  100% {
-    opacity: 0.8;
-    transform: translateY(0);
-    color: rgba(0, 0, 0, 0.7);
-  }
-}
-
-.search-bar.expanded input {
-  opacity: 1;
-  text-align: left;
-}
-
+// 搜索按钮样式
 .search-btn {
   width: 3rem;
   height: 100%;
   border: none;
   background-color: transparent;
   color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  @include flex-center;
   cursor: pointer;
   transition: all 0.3s ease;
   position: relative;
-  border-top-right-radius: 2rem;
-  border-bottom-right-radius: 2rem;
+  border-top-right-radius: $search-bar-radius;
+  border-bottom-right-radius: $search-bar-radius;
   overflow: hidden;
-}
 
-.search-btn::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: #4285f4;
-  z-index: 0;
-  border-top-right-radius: 2rem;
-  border-bottom-right-radius: 2rem;
-  transition: background-color 0.3s ease;
-}
+  &::before {
+    content: '';
+    @include absolute-fill;
+    background-color: #4285f4;
+    z-index: 0;
+    border-top-right-radius: $search-bar-radius;
+    border-bottom-right-radius: $search-bar-radius;
+    transition: background-color 0.3s ease;
+  }
 
-.search-btn:hover::before {
-  background-color: #3367d6;
+  &:hover::before {
+    background-color: #3367d6;
+  }
 }
 
 .search-icon {
@@ -618,26 +574,40 @@ onUnmounted(() => {
   z-index: 1;
 }
 
+// 响应式设计
 @media (max-width: 768px) {
-  .search-wrapper.expanded {
-    width: 90%;
-    padding: 0;
-  }
-  
   .search-bar {
     width: 280px;
+
+    &.expanded {
+      width: 90%;
+    }
   }
-  
-  .search-bar.expanded {
-    width: 90%;
-  }
-  
+
   .engine-selector {
     min-width: 80px;
   }
 }
 
-.selected-engine.with-bg {
-  background-color: rgba(230, 230, 230, 0.7);
+// 动画类
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+.fade-slide-enter-active,
+.fade-slide-leave-active {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.fade-slide-enter-from,
+.fade-slide-leave-to {
+  opacity: 0;
+  transform: translateX(-10px);
 }
 </style> 

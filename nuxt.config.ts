@@ -19,17 +19,12 @@ export default defineNuxtConfig({
     transpile: ['element-plus/es']
   },
   
-  // Element Plus 配置
-  elementPlus: {
-    importStyle: 'scss',
-    themes: ['dark']
-  },
-  
   // 运行时配置
   runtimeConfig: {
     public: {
       elementPlus: {
-        importStyle: 'scss'
+        importStyle: 'scss',
+        themes: ['dark']
       }
     }
   },

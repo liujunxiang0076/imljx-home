@@ -10,11 +10,15 @@
     "postinstall": "nuxt prepare"
   },
   "dependencies": {
+    "@element-plus/icons-vue": "^2.3.1",
     "@headlessui/vue": "^1.7.23",
     "@heroicons/vue": "^2.2.0",
+    "@types/qrcode": "^1.5.5",
     "@vueuse/core": "^13.0.0",
+    "element-plus": "^2.9.6",
     "h3": "^1.15.1",
     "nuxt": "^3.16.0",
+    "qrcode": "^1.5.4",
     "vue": "^3.5.13",
     "vue-router": "^4.5.0"
   },

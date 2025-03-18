@@ -19,12 +19,38 @@ export default defineNuxtConfig({
     transpile: ['element-plus/es']
   },
   
+  // Element Plus 配置
+  elementPlus: {
+    importStyle: 'scss',
+    themes: ['dark']
+  },
+  
   // 运行时配置
   runtimeConfig: {
     public: {
       elementPlus: {
         importStyle: 'scss'
       }
+    }
+  },
+
+  // SSR 配置
+  ssr: true,
+
+  // 构建优化
+  experimental: {
+    payloadExtraction: false
+  },
+
+  // 自动导入配置
+  imports: {
+    autoImport: true
+  },
+
+  // Nitro 配置
+  nitro: {
+    prerender: {
+      failOnError: false
     }
   }
 })

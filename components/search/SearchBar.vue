@@ -576,16 +576,137 @@ $transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
 
 // 响应式设计
 @media (max-width: 768px) {
+  .search-content {
+    margin-top: 10vh;
+    width: 100%;
+    padding: 0 1rem;
+  }
+
   .search-bar {
-    width: 280px;
+    width: 100%;
+    max-width: 320px;
 
     &.expanded {
-      width: 90%;
+      width: 100%;
+      max-width: 100%;
     }
   }
 
-  .engine-selector {
-    min-width: 80px;
+  .engine-selector-container {
+    margin-right: 0.3rem;
+  }
+
+  .selected-engine {
+    height: 36px;
+    width: 36px;
+  }
+
+  .engine-icon {
+    width: 20px;
+    height: 20px;
+  }
+
+  .engine-dropdown {
+    width: 140px;
+    left: 0.3rem;
+  }
+
+  .engine-option {
+    padding: 0.7rem 0.8rem;
+    font-size: 0.95rem;
+  }
+
+  input {
+    font-size: 1rem;
+    padding: 0 0.8rem 0 0.3rem;
+  }
+
+  .search-btn {
+    width: 2.8rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .search-content {
+    margin-top: 8vh;
+  }
+
+  .search-bar {
+    height: 2.8rem;
+    border-radius: 1.4rem;
+  }
+
+  .selected-engine {
+    height: 32px;
+    width: 32px;
+  }
+
+  .engine-icon {
+    width: 18px;
+    height: 18px;
+  }
+
+  input {
+    font-size: 0.95rem;
+  }
+
+  .search-btn {
+    width: 2.5rem;
+  }
+}
+
+// 添加触摸设备支持
+@media (hover: none) {
+  .search-bar {
+    &:active {
+      background-color: rgba(255, 255, 255, 0.95);
+    }
+  }
+
+  .selected-engine {
+    &:active {
+      background-color: rgba(230, 230, 230, 0.7);
+    }
+  }
+}
+
+// 添加暗色模式支持
+@media (prefers-color-scheme: dark) {
+  .search-bar {
+    background-color: rgba(30, 30, 30, 0.6);
+
+    &.expanded {
+      background-color: rgba(30, 30, 30, 0.95);
+    }
+
+    input {
+      color: #ffffff;
+
+      &::placeholder {
+        color: rgba(255, 255, 255, 0.6);
+      }
+    }
+  }
+
+  .engine-dropdown {
+    background-color: #1e1e1e;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  }
+
+  .engine-option {
+    color: #ffffff;
+
+    &:hover {
+      background-color: rgba(255, 255, 255, 0.1);
+    }
+
+    &.selected {
+      color: #60a5fa;
+    }
+  }
+
+  .check-icon {
+    color: #60a5fa;
   }
 }
 

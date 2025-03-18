@@ -50,7 +50,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch, onMounted } from 'vue'
 import QRCode from 'qrcode'
 import { Download, InfoFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
@@ -87,6 +87,18 @@ const generateQRs = async () => {
     console.error(err)
   }
 }
+
+// 监听文本变化
+watch(text, () => {
+  generateQRs()
+})
+
+// 组件挂载时生成二维码
+onMounted(() => {
+  if (text.value) {
+    generateQRs()
+  }
+})
 
 const downloadQR = (code: QRCodeItem, index: number) => {
   const link = document.createElement('a')

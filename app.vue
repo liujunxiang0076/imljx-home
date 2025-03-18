@@ -1,11 +1,10 @@
 <template>
   <div>
-    <SearchBar />
+    <NuxtPage />
   </div>
 </template>
 
 <script setup>
-import SearchBar from '~/components/search/SearchBar.vue'
 useHead({
   title: 'imljx home',
   meta: [

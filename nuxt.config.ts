@@ -7,5 +7,24 @@ export default defineNuxtConfig({
   compatibilityDate: '2024-11-01',
   
   // 开发工具：启用Nuxt开发工具，提供调试和性能分析功能
-  devtools: { enabled: true }
+  devtools: { enabled: true },
+  
+  // 添加 Element Plus 配置
+  modules: [
+    '@element-plus/nuxt'
+  ],
+  
+  // 构建配置
+  build: {
+    transpile: ['element-plus/es']
+  },
+  
+  // 运行时配置
+  runtimeConfig: {
+    public: {
+      elementPlus: {
+        importStyle: 'scss'
+      }
+    }
+  }
 })

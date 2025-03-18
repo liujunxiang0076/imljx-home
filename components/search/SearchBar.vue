@@ -3,15 +3,14 @@
     <div class="loading-overlay" v-if="isLoading">
       <div class="loader"></div>
     </div>
-    <div class="image-credit" v-if="imageInfo">
-      {{ imageInfo.copyright }}
-    </div>
     <div class="search-content">
       <TimeDisplay />
       <div 
         class="search-bar" 
         :class="{ 'expanded': isExpanded }" 
         ref="searchBarRef"
+        @mouseenter="expandSearchBar"
+        @mouseleave="collapseSearchBar"
       >
         <!-- 使用HeadlessUI的Listbox组件实现搜索引擎选择 -->
         <div class="engine-selector-container">
@@ -77,7 +76,8 @@
           type="text" 
           :placeholder="placeholder"
           @keyup.enter="search"
-          @focus="isExpanded = true"
+          @focus="handleFocus"
+          @blur="handleBlur"
           :class="{ 'engine-name-transition': engineNameTransition }"
         />
         
@@ -137,6 +137,7 @@ const isExpanded = ref(false)
 const searchBarRef = ref(null)
 const isDropdownOpen = ref(false)
 const isEngineClicked = ref(false)
+const hasFocus = ref(false)
 
 // 获取当前选择的搜索引擎名称
 const getSelectedEngineName = () => {
@@ -157,7 +158,7 @@ const backgroundStyle = computed(() => ({
 
 // 计算属性：placeholder
 const placeholder = computed(() => {
-  return isExpanded.value ? `在 ${getSelectedEngineName()} 中搜索...` : ''
+  return isExpanded.value ? `在 ${getSelectedEngineName()} 中搜索...` : '搜索'
 })
 
 // 引擎名称动画控制
@@ -176,16 +177,20 @@ const search = () => {
 // 展开搜索栏
 const expandSearchBar = () => {
   isExpanded.value = true
+  // 触发新placeholder的动画
+  engineNameTransition.value = true
+  setTimeout(() => {
+    engineNameTransition.value = false
+  }, 300)
 }
 
 // 收起搜索栏
 const collapseSearchBar = () => {
-  // 检查搜索框是否为空且没有获得焦点，且下拉菜单未打开
-  if (!searchQuery.value.trim() && 
-      document.activeElement !== document.querySelector('.search-bar input') && 
-      !isDropdownOpen.value) {
-    isExpanded.value = false
+  // 如果搜索框有内容、下拉菜单打开或有焦点，不收起
+  if (searchQuery.value.trim() || isDropdownOpen.value || hasFocus.value) {
+    return
   }
+  isExpanded.value = false
 }
 
 // 处理搜索引擎变更
@@ -218,9 +223,20 @@ const handleDropdownClose = () => {
   isEngineClicked.value = false
 }
 
+// 处理焦点
+const handleFocus = () => {
+  hasFocus.value = true
+  isExpanded.value = true
+}
+
+const handleBlur = () => {
+  hasFocus.value = false
+}
+
 // 点击外部时收起搜索栏
 onClickOutside(searchBarRef, () => {
   if (isExpanded.value && !isDropdownOpen.value) {
+    hasFocus.value = false
     collapseSearchBar()
   }
 })
@@ -372,20 +388,26 @@ onUnmounted(() => {
 .search-bar {
   display: flex;
   align-items: center;
-  height: 3.5rem;
+  height: 3rem;
   border-radius: 2rem;
   background-color: rgba(255, 255, 255, 0.6);
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  width: 300px;
+  width: 350px;
   overflow: visible;
   position: relative;
   padding-left: 0.2rem;
+  will-change: width, background-color;
 }
 
 .search-bar.expanded {
-  width: 600px;
-  background-color: rgba(255, 255, 255, 0.8);
+  width: 750px;
+  background-color: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.search-bar:hover {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
 }
 
 .engine-selector-container {
@@ -405,8 +427,8 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 44px;
-  width: 44px;
+  height: 40px;
+  width: 40px;
   padding: 0;
   margin-left: 0.2rem;
   cursor: pointer;
@@ -435,8 +457,8 @@ onUnmounted(() => {
 }
 
 .engine-icon {
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
   object-fit: contain;
   transition: transform 0.3s ease;
 }
@@ -510,40 +532,50 @@ onUnmounted(() => {
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   opacity: 0.8;
   margin-left: 0.2rem;
+  text-align: left;
 }
 
 .search-bar input::placeholder {
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  opacity: 0;
-  transform: translateX(-10px);
+  opacity: 0.7;
+  transform: translateY(0);
+  color: rgba(0, 0, 0, 0.6);
 }
 
 .search-bar.expanded input::placeholder {
-  opacity: 1;
-  transform: translateX(0);
+  opacity: 0.8;
+  transform: translateY(0);
+  color: rgba(0, 0, 0, 0.7);
+}
+
+.search-bar input:focus::placeholder {
+  opacity: 0;
+  transform: translateY(-20px);
 }
 
 .search-bar input.engine-name-transition::placeholder {
-  animation: engineNamePop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  animation: placeholderTransition 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
-@keyframes engineNamePop {
+@keyframes placeholderTransition {
   0% {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(20px);
   }
   100% {
-    opacity: 1;
+    opacity: 0.8;
     transform: translateY(0);
+    color: rgba(0, 0, 0, 0.7);
   }
 }
 
 .search-bar.expanded input {
   opacity: 1;
+  text-align: left;
 }
 
 .search-btn {
-  width: 3.5rem;
+  width: 3rem;
   height: 100%;
   border: none;
   background-color: transparent;
@@ -578,18 +610,10 @@ onUnmounted(() => {
 }
 
 .search-icon {
-  width: 1.2rem;
-  height: 1.2rem;
+  width: 1.1rem;
+  height: 1.1rem;
   position: relative;
   z-index: 1;
-}
-
-.image-credit {
-  margin-top: 1rem;
-  text-align: center;
-  font-size: 0.8rem;
-  color: rgba(255, 255, 255, 0.8);
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
 }
 
 @media (max-width: 768px) {
@@ -599,7 +623,11 @@ onUnmounted(() => {
   }
   
   .search-bar {
-    width: 250px;
+    width: 280px;
+  }
+  
+  .search-bar.expanded {
+    width: 90%;
   }
   
   .engine-selector {

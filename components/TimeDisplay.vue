@@ -35,11 +35,11 @@ onUnmounted(() => {
 <style scoped>
 .time-display {
   font-size: 4.5rem;
-  font-weight: 300;
+  font-weight: 200;
   color: white;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   margin-bottom: 1.5rem;
-  font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: 'Quicksand', 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   letter-spacing: 2px;
   opacity: 0.95;
   position: relative;

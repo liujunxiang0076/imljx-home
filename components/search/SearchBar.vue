@@ -77,6 +77,7 @@
           type="text" 
           :placeholder="placeholder"
           @keyup.enter="search"
+          @input="handleInput"
           @focus="handleFocus"
           @blur="handleBlur"
           :class="{ 'engine-name-transition': engineNameTransition }"
@@ -88,14 +89,62 @@
           </button>
         </transition>
       </div>
+
+      <!-- 搜索建议下拉列表 -->
+      <transition name="suggestion-fade">
+        <div class="search-suggestions" v-if="showSuggestions && suggestions.length > 0">
+          <div class="suggestion-header">
+            <span class="suggestion-title">{{ getSelectedEngineName() }}搜索建议</span>
+            <button class="close-suggestions" @click="closeSuggestions">
+              <XMarkIcon class="close-icon" aria-hidden="true" />
+            </button>
+          </div>
+          <ul class="suggestion-list">
+            <li 
+              v-for="(suggestion, index) in suggestions" 
+              :key="index"
+              @click="selectSuggestion(suggestion)"
+              @mouseenter="highlightIndex = index"
+              :class="{ 'highlighted': highlightIndex === index }"
+            >
+              <MagnifyingGlassIcon class="suggestion-icon" aria-hidden="true" />
+              <span v-html="highlightMatch(suggestion)"></span>
+              <ArrowUpRightIcon 
+                class="go-icon" 
+                aria-hidden="true" 
+                v-if="highlightIndex === index"
+              />
+            </li>
+          </ul>
+          <div class="suggestion-footer">
+            <span class="keyboard-hint">
+              <ArrowUpIcon class="arrow-icon" />
+              <ArrowDownIcon class="arrow-icon" />
+              选择
+              <EnterIcon class="enter-icon" />
+              确认
+              <EscapeIcon class="esc-icon" />
+              关闭
+            </span>
+          </div>
+        </div>
+      </transition>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, h } from 'vue'
 import { Listbox, ListboxButton, ListboxOptions, ListboxOption } from '@headlessui/vue'
-import { ChevronDownIcon, CheckIcon, MagnifyingGlassIcon } from '@heroicons/vue/20/solid'
+import { 
+  ChevronDownIcon, 
+  CheckIcon, 
+  MagnifyingGlassIcon, 
+  XMarkIcon, 
+  ArrowUpRightIcon,
+  ArrowUpIcon,
+  ArrowDownIcon
+} from '@heroicons/vue/20/solid'
 import TimeDisplay from '../TimeDisplay.vue'
 import { onClickOutside } from '@vueuse/core'
 import WelcomeToast from '../WelcomeToast.vue'
@@ -140,6 +189,12 @@ const searchBarRef = ref(null)
 const isDropdownOpen = ref(false)
 const isEngineClicked = ref(false)
 const hasFocus = ref(false)
+
+// 搜索建议相关
+const suggestions = ref([])
+const showSuggestions = ref(false)
+const highlightIndex = ref(-1)
+const debounceTimer = ref(null)
 
 // 获取当前选择的搜索引擎名称
 const getSelectedEngineName = () => {
@@ -225,20 +280,120 @@ const handleDropdownClose = () => {
   isEngineClicked.value = false
 }
 
+// 处理输入，获取搜索建议
+const handleInput = () => {
+  if (debounceTimer.value) clearTimeout(debounceTimer.value)
+  
+  // 展开搜索栏
+  isExpanded.value = true
+  
+  // 如果搜索框为空，不显示建议
+  if (!searchQuery.value.trim()) {
+    showSuggestions.value = false
+    suggestions.value = []
+    return
+  }
+  
+  // 延迟300ms，减少API请求频率
+  debounceTimer.value = setTimeout(() => {
+    fetchSuggestions()
+  }, 300)
+}
+
+// 获取搜索建议
+const fetchSuggestions = async () => {
+  if (!searchQuery.value.trim()) return
+  
+  try {
+    // 根据当前搜索引擎获取建议API
+    const engine = getSelectedEngine()
+    
+    // 使用服务器端API获取搜索建议
+    const response = await fetch(`/api/search-suggestions?query=${encodeURIComponent(searchQuery.value)}&engine=${engine.name}`)
+    const data = await response.json()
+    
+    if (data.success && Array.isArray(data.suggestions)) {
+      suggestions.value = data.suggestions
+      showSuggestions.value = data.suggestions.length > 0
+    } else {
+      console.warn('获取搜索建议返回格式错误:', data)
+      suggestions.value = []
+      showSuggestions.value = false
+    }
+  } catch (error) {
+    console.error('获取搜索建议失败:', error)
+    suggestions.value = []
+    showSuggestions.value = false
+  }
+}
+
+// 选择搜索建议
+const selectSuggestion = (suggestion) => {
+  searchQuery.value = suggestion
+  search()
+}
+
+// 高亮匹配的搜索词
+const highlightMatch = (text) => {
+  if (!searchQuery.value.trim()) return text
+  
+  const regex = new RegExp(`(${searchQuery.value})`, 'gi')
+  return text.replace(regex, '<strong class="highlight">$1</strong>')
+}
+
+// 键盘导航搜索建议
+const handleKeyDown = (e) => {
+  if (!showSuggestions.value || suggestions.value.length === 0) return
+  
+  // 向下箭头
+  if (e.key === 'ArrowDown') {
+    e.preventDefault()
+    highlightIndex.value = (highlightIndex.value + 1) % suggestions.value.length
+  }
+  
+  // 向上箭头
+  else if (e.key === 'ArrowUp') {
+    e.preventDefault()
+    highlightIndex.value = highlightIndex.value <= 0 ? suggestions.value.length - 1 : highlightIndex.value - 1
+  }
+  
+  // 回车键
+  else if (e.key === 'Enter' && highlightIndex.value >= 0) {
+    e.preventDefault()
+    selectSuggestion(suggestions.value[highlightIndex.value])
+  }
+  
+  // Esc键
+  else if (e.key === 'Escape') {
+    showSuggestions.value = false
+  }
+}
+
 // 处理焦点
 const handleFocus = () => {
   hasFocus.value = true
   isExpanded.value = true
+  
+  // 如果有输入内容，显示搜索建议
+  if (searchQuery.value.trim()) {
+    fetchSuggestions()
+  }
 }
 
 const handleBlur = () => {
   hasFocus.value = false
+  
+  // 延迟关闭建议，以便可以点击建议
+  setTimeout(() => {
+    showSuggestions.value = false
+  }, 200)
 }
 
 // 点击外部时收起搜索栏
 onClickOutside(searchBarRef, () => {
   if (isExpanded.value && !isDropdownOpen.value) {
     hasFocus.value = false
+    showSuggestions.value = false
     collapseSearchBar()
   }
 })
@@ -274,12 +429,63 @@ const fetchBingImage = async () => {
 // 组件挂载时获取背景图片
 onMounted(() => {
   fetchBingImage()
+  window.addEventListener('keydown', handleKeyDown)
 })
 
 // 组件卸载时移除事件监听
 onUnmounted(() => {
-  // Remove event listeners and clean up resources
+  window.removeEventListener('keydown', handleKeyDown)
+  if (debounceTimer.value) clearTimeout(debounceTimer.value)
 })
+
+// 当搜索引擎改变时，更新搜索建议
+watch(selectedEngine, () => {
+  if (searchQuery.value.trim()) {
+    fetchSuggestions()
+  }
+})
+
+// 关闭搜索建议
+const closeSuggestions = () => {
+  showSuggestions.value = false
+  highlightIndex.value = -1
+}
+
+// 自定义Enter和Esc图标组件
+const EnterIcon = (props) => {
+  return h('svg', {
+    xmlns: 'http://www.w3.org/2000/svg',
+    viewBox: '0 0 24 24',
+    fill: 'currentColor',
+    class: props.class || 'enter-icon',
+    width: props.width || '1em',
+    height: props.height || '1em',
+    'aria-hidden': props['aria-hidden'] || 'true'
+  }, [
+    h('path', {
+      d: 'M20 4v12h-16v-12h16zm0-2h-16c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2v-12c0-1.1-.9-2-2-2z'
+    }),
+    h('path', {
+      d: 'M11 15l5-5h-3v-4h-4v4h-3l5 5z'
+    })
+  ])
+}
+
+const EscapeIcon = (props) => {
+  return h('svg', {
+    xmlns: 'http://www.w3.org/2000/svg',
+    viewBox: '0 0 24 24',
+    fill: 'currentColor',
+    class: props.class || 'esc-icon',
+    width: props.width || '1em',
+    height: props.height || '1em',
+    'aria-hidden': props['aria-hidden'] || 'true'
+  }, [
+    h('path', {
+      d: 'M5 5h2v2h-2v-2zm3 0h2v2h-2v-2zm3 0h8v2h-8v-2zm-6 3h2v2h-2v-2zm3 0h2v2h-2v-2zm3 0h8v2h-8v-2zm-6 3h2v2h-2v-2zm3 0h2v2h-2v-2zm3 0h8v2h-8v-2zm-6 3h2v2h-2v-2zm3 0h2v2h-2v-2zm3 0h8v2h-8v-2z'
+    })
+  ])
+}
 </script>
 
 <style lang="scss" scoped>
@@ -574,6 +780,138 @@ $transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
   z-index: 1;
 }
 
+// 搜索建议样式
+.search-suggestions {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  background-color: rgba(255, 255, 255, 0.98);
+  border-radius: 1rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  z-index: 50;
+  overflow: hidden;
+  max-height: 300px;
+  display: flex;
+  flex-direction: column;
+}
+
+.suggestion-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.6rem 1rem;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.suggestion-title {
+  font-size: 0.85rem;
+  color: #666;
+  font-weight: 500;
+}
+
+.close-suggestions {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+  
+  &:hover {
+    opacity: 1;
+  }
+  
+  .close-icon {
+    width: 1rem;
+    height: 1rem;
+  }
+}
+
+.suggestion-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  max-height: 220px;
+  
+  li {
+    padding: 0.8rem 1rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    position: relative;
+    
+    &:hover, &.highlighted {
+      background-color: rgba(230, 230, 230, 0.7);
+    }
+    
+    &.highlighted {
+      padding-right: 2.5rem;
+    }
+    
+    .suggestion-icon {
+      width: 1rem;
+      height: 1rem;
+      color: #9ca3af;
+      flex-shrink: 0;
+      margin-right: 0.8rem;
+    }
+    
+    .go-icon {
+      position: absolute;
+      right: 1rem;
+      width: 1rem;
+      height: 1rem;
+      color: #4285f4;
+      opacity: 0.8;
+    }
+    
+    .highlight {
+      font-weight: 600;
+      color: #4285f4;
+    }
+  }
+}
+
+.suggestion-footer {
+  padding: 0.6rem 1rem;
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
+  display: flex;
+  justify-content: flex-end;
+}
+
+.keyboard-hint {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  color: #666;
+  
+  .arrow-icon, .enter-icon, .esc-icon {
+    width: 1rem;
+    height: 1rem;
+    opacity: 0.7;
+  }
+}
+
+// 搜索建议动画
+.suggestion-fade-enter-active,
+.suggestion-fade-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  transform-origin: top center;
+}
+
+.suggestion-fade-enter-from,
+.suggestion-fade-leave-to {
+  opacity: 0;
+  transform: scaleY(0.9);
+}
+
 // 响应式设计
 @media (max-width: 768px) {
   .search-content {
@@ -624,6 +962,15 @@ $transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
   .search-btn {
     width: 2.8rem;
   }
+
+  .search-suggestions {
+    border-radius: 0.8rem;
+    
+    li {
+      padding: 0.7rem 0.8rem;
+      font-size: 0.95rem;
+    }
+  }
 }
 
 @media (max-width: 480px) {
@@ -652,6 +999,20 @@ $transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
 
   .search-btn {
     width: 2.5rem;
+  }
+
+  .search-suggestions {
+    border-radius: 0.7rem;
+    
+    li {
+      padding: 0.6rem 0.7rem;
+      font-size: 0.9rem;
+      
+      .suggestion-icon {
+        width: 0.9rem;
+        height: 0.9rem;
+      }
+    }
   }
 }
 
@@ -707,6 +1068,47 @@ $transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
 
   .check-icon {
     color: #60a5fa;
+  }
+
+  .search-suggestions {
+    background-color: rgba(30, 30, 30, 0.98);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    
+    .suggestion-header {
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      
+      .suggestion-title {
+        color: #aaa;
+      }
+    }
+    
+    .suggestion-footer {
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+      
+      .keyboard-hint {
+        color: #aaa;
+      }
+    }
+    
+    li {
+      color: #ffffff;
+      
+      &:hover, &.highlighted {
+        background-color: rgba(255, 255, 255, 0.1);
+      }
+      
+      .suggestion-icon {
+        color: #9ca3af;
+      }
+      
+      .go-icon {
+        color: #60a5fa;
+      }
+      
+      .highlight {
+        color: #60a5fa;
+      }
+    }
   }
 }
 

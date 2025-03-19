@@ -4,17 +4,31 @@
     leave-active-class="animate-slide-up"
   >
     <div v-show="show" class="welcome-toast">
-      欢迎回来！
+      {{ greeting }}
     </div>
   </Transition>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 
 const show = ref(false)
 let showTimer = null
 let hideTimer = null
+
+// 根据时间计算问候语
+const greeting = computed(() => {
+  const hour = new Date().getHours()
+  if (hour >= 5 && hour < 12) {
+    return '早上好！'
+  } else if (hour >= 12 && hour < 18) {
+    return '中午好！'
+  } else if (hour >= 18 && hour < 22) {
+    return '晚上好！'
+  } else {
+    return '夜深了，早点休息！'
+  }
+})
 
 onMounted(() => {
   // 如果页面已经加载完成，直接显示

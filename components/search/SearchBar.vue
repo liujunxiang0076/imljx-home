@@ -118,13 +118,19 @@
           </ul>
           <div class="suggestion-footer">
             <span class="keyboard-hint">
-              <ArrowUpIcon class="arrow-icon" />
-              <ArrowDownIcon class="arrow-icon" />
-              选择
-              <EnterIcon class="enter-icon" />
-              确认
-              <EscapeIcon class="esc-icon" />
-              关闭
+              <span class="key-hint">
+                <ArrowUpIcon class="arrow-icon" />
+                <ArrowDownIcon class="arrow-icon" />
+                <span class="key-text">选择</span>
+              </span>
+              <span class="key-hint">
+                <span class="key-box">Enter</span>
+                <span class="key-text">确认</span>
+              </span>
+              <span class="key-hint">
+                <span class="key-box">Esc</span>
+                <span class="key-text">关闭</span>
+              </span>
             </span>
           </div>
         </div>
@@ -449,42 +455,6 @@ watch(selectedEngine, () => {
 const closeSuggestions = () => {
   showSuggestions.value = false
   highlightIndex.value = -1
-}
-
-// 自定义Enter和Esc图标组件
-const EnterIcon = (props) => {
-  return h('svg', {
-    xmlns: 'http://www.w3.org/2000/svg',
-    viewBox: '0 0 24 24',
-    fill: 'currentColor',
-    class: props.class || 'enter-icon',
-    width: props.width || '1em',
-    height: props.height || '1em',
-    'aria-hidden': props['aria-hidden'] || 'true'
-  }, [
-    h('path', {
-      d: 'M20 4v12h-16v-12h16zm0-2h-16c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2v-12c0-1.1-.9-2-2-2z'
-    }),
-    h('path', {
-      d: 'M11 15l5-5h-3v-4h-4v4h-3l5 5z'
-    })
-  ])
-}
-
-const EscapeIcon = (props) => {
-  return h('svg', {
-    xmlns: 'http://www.w3.org/2000/svg',
-    viewBox: '0 0 24 24',
-    fill: 'currentColor',
-    class: props.class || 'esc-icon',
-    width: props.width || '1em',
-    height: props.height || '1em',
-    'aria-hidden': props['aria-hidden'] || 'true'
-  }, [
-    h('path', {
-      d: 'M5 5h2v2h-2v-2zm3 0h2v2h-2v-2zm3 0h8v2h-8v-2zm-6 3h2v2h-2v-2zm3 0h2v2h-2v-2zm3 0h8v2h-8v-2zm-6 3h2v2h-2v-2zm3 0h2v2h-2v-2zm3 0h8v2h-8v-2zm-6 3h2v2h-2v-2zm3 0h2v2h-2v-2zm3 0h8v2h-8v-2z'
-    })
-  ])
 }
 </script>
 
@@ -888,14 +858,39 @@ $transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
 .keyboard-hint {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.8rem;
   font-size: 0.75rem;
   color: #666;
   
-  .arrow-icon, .enter-icon, .esc-icon {
+  .arrow-icon {
     width: 1rem;
     height: 1rem;
     opacity: 0.7;
+  }
+  
+  .key-hint {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+  }
+  
+  .key-box {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #f2f2f2;
+    border: 1px solid #ddd;
+    border-radius: 3px;
+    padding: 0.1rem 0.4rem;
+    font-size: 0.7rem;
+    font-weight: 500;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    min-width: 1.6rem;
+    text-align: center;
+  }
+  
+  .key-text {
+    margin-left: 0.1rem;
   }
 }
 
@@ -1087,6 +1082,12 @@ $transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
       
       .keyboard-hint {
         color: #aaa;
+        
+        .key-box {
+          background-color: #333;
+          border-color: #444;
+          color: #eee;
+        }
       }
     }
     

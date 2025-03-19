@@ -19,14 +19,23 @@ let hideTimer = null
 // 根据时间计算问候语
 const greeting = computed(() => {
   const hour = new Date().getHours()
-  if (hour >= 5 && hour < 12) {
-    return '早上好！'
-  } else if (hour >= 12 && hour < 18) {
+  
+  if (hour >= 0 && hour < 5) {
+    return '夜深了，注意休息！'
+  } else if (hour >= 5 && hour < 7) {
+    return '清晨好！'
+  } else if (hour >= 7 && hour < 11) {
+    return '上午好！'
+  } else if (hour >= 11 && hour < 13) {
     return '中午好！'
-  } else if (hour >= 18 && hour < 22) {
+  } else if (hour >= 13 && hour < 17) {
+    return '下午好！'
+  } else if (hour >= 17 && hour < 19) {
+    return '傍晚好！'
+  } else if (hour >= 19 && hour < 23) {
     return '晚上好！'
   } else {
-    return '夜深了，早点休息！'
+    return '夜深了，注意休息！'
   }
 })
 

@@ -13,7 +13,7 @@
       >
         <div class="shortcut-icon">
           <el-icon>
-            <component :is="shortcut.icon"></component>
+            <component :is="getIcon(shortcut.iconName)"></component>
           </el-icon>
         </div>
         <div class="shortcut-name">{{ shortcut.name }}</div>
@@ -35,38 +35,50 @@ import {
 const show = ref(false)
 let showTimer = null
 
+const iconMap = {
+  Grid,
+  Document,
+  Message,
+  VideoPlay,
+  Picture
+}
+
+const getIcon = (name) => {
+  return iconMap[name]
+}
+
 const shortcuts = ref([
   { 
     name: '应用', 
-    path: '/apps', 
-    icon: Grid 
+    path: '#', 
+    iconName: 'Grid'
   },
   { 
     name: '二维码', 
     path: '/qrcode', 
-    icon: Document 
+    iconName: 'Document'
   },
   { 
     name: '邮件', 
-    path: '/mail', 
-    icon: Message 
+    path: '#', 
+    iconName: 'Message'
   },
   { 
     name: '视频', 
-    path: '/video', 
-    icon: VideoPlay 
+    path: '#', 
+    iconName: 'VideoPlay'
   },
   { 
     name: '图库', 
-    path: '/gallery', 
-    icon: Picture 
+    path: '#', 
+    iconName: 'Picture'
   },
 ])
 
 const startShowProcess = () => {
   showTimer = setTimeout(() => {
     show.value = true
-  }, 800) // 在 WelcomeToast 显示后显示
+  }, 800)
 }
 
 onMounted(() => {

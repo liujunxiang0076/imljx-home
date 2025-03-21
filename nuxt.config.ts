@@ -47,5 +47,31 @@ export default defineNuxtConfig({
     prerender: {
       failOnError: false
     }
+  },
+
+  components: {
+    dirs: [
+      {
+        path: '~/components/common',
+        global: true
+      },
+      {
+        path: '~/components/search',
+        global: true
+      },
+      {
+        path: '~/components/shortcut',
+        global: true
+      },
+      {
+        path: '~/components/time',
+        global: true
+      },
+      {
+        path: '~/components/widgets',
+        global: true
+      },
+      '~/components'
+    ]
   }
 })

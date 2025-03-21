@@ -6,10 +6,10 @@
 
 <script setup>
 import { useHead } from '#imports'
-import QRCodeGenerator from '~/components/QRCodeGenerator.vue'
+import QRCodeGenerator from '~/components/widgets/QRCodeGenerator.vue'
 
 useHead({
-  title: '二维码生成器',
+  title: '二维码生成器 - 首页',
   link: [
     {
       rel: 'icon',

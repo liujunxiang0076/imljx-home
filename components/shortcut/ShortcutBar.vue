@@ -1,3 +1,4 @@
+// 快捷栏组件
 <template>
   <Transition
     enter-active-class="animate-slide-up"
@@ -12,8 +13,8 @@
         :effect="isDark ? 'dark' : 'light'"
         :offset="12"
       >
-        <NuxtLink 
-          :to="shortcut.path"
+        <a 
+          :href="shortcut.path"
           class="shortcut-item"
           :style="{ '--delay': `${(index * 0.1) + 0.3}s` }"
           target="_blank"
@@ -24,7 +25,7 @@
               <component :is="getIcon(shortcut.iconName)"></component>
             </el-icon>
           </div>
-        </NuxtLink>
+        </a>
       </el-tooltip>
     </div>
   </Transition>
@@ -159,6 +160,7 @@ onUnmounted(() => {
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
+  text-decoration: none;
   
   &::before {
     content: '';

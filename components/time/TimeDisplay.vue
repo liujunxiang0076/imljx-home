@@ -1,3 +1,4 @@
+// 时间显示组件
 <template>
   <Transition name="time-fade">
     <div class="time-display" v-show="mounted">

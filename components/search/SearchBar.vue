@@ -155,9 +155,9 @@ import {
   ArrowUpIcon,
   ArrowDownIcon
 } from '@heroicons/vue/20/solid'
-import TimeDisplay from '../TimeDisplay.vue'
+import TimeDisplay from '../time/TimeDisplay.vue'
 import { onClickOutside } from '@vueuse/core'
-import WelcomeToast from '../WelcomeToast.vue'
+import WelcomeToast from '../common/WelcomeToast.vue'
 
 // 搜索引擎配置
 const searchEngines = [

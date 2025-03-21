@@ -299,6 +299,7 @@ import { ref, reactive, watch, onMounted, computed, onUnmounted, nextTick } from
 import QRCode from 'qrcode'
 import { saveAs } from 'file-saver'
 import { ArrowDown, Download, Document } from '@element-plus/icons-vue'
+import JSZip from 'jszip'
 
 const qrcodeRef = ref(null)
 const canvas = ref(null)
@@ -528,6 +529,18 @@ const handleResize = () => {
   generateQRCode()
 }
 
+// 生成安全的文件名
+const getSafeFileName = (text, maxLength = 50) => {
+  // 移除不安全的文件名字符
+  let fileName = text.replace(/[\/\\:*?"<>|]/g, '_');
+  // 限制长度
+  if (fileName.length > maxLength) {
+    fileName = fileName.substring(0, maxLength);
+  }
+  // 确保文件名不为空
+  return fileName || 'qrcode';
+}
+
 const downloadQRCode = async (format) => {
   const content = validateContent()
   if (!content) return
@@ -543,16 +556,19 @@ const downloadQRCode = async (format) => {
   }
 
   try {
+    // 使用内容作为文件名
+    const fileName = getSafeFileName(content);
+    
     if (format === 'png') {
       const dataUrl = await QRCode.toDataURL(content, options)
-      saveAs(dataUrl, 'qrcode.png')
+      saveAs(dataUrl, `${fileName}.png`)
     } else if (format === 'svg') {
       const svgString = await QRCode.toString(content, {
         ...options,
         type: 'svg'
       })
       const blob = new Blob([svgString], { type: 'image/svg+xml' })
-      saveAs(blob, 'qrcode.svg')
+      saveAs(blob, `${fileName}.svg`)
     }
   } catch (error) {
     console.error('下载QR码时出错：', error)
@@ -573,27 +589,34 @@ const batchDownload = async (format) => {
   }
 
   try {
-    if (format === 'png') {
-      for (let i = 0; i < tags.value.length; i++) {
-        const text = tags.value[i]
-        if (text && text.trim()) {
+    // 创建新的JSZip实例
+    const zip = new JSZip();
+    
+    // 添加所有二维码到zip文件
+    for (let i = 0; i < tags.value.length; i++) {
+      const text = tags.value[i]
+      if (text && text.trim()) {
+        // 使用内容作为文件名
+        const fileName = getSafeFileName(text);
+        
+        if (format === 'png') {
           const dataUrl = await QRCode.toDataURL(text, options)
-          saveAs(dataUrl, `qrcode_${i + 1}.png`)
-        }
-      }
-    } else if (format === 'svg') {
-      for (let i = 0; i < tags.value.length; i++) {
-        const text = tags.value[i]
-        if (text && text.trim()) {
+          // 将base64转换为二进制数据
+          const base64Data = dataUrl.split(',')[1];
+          zip.file(`${fileName}.png`, base64Data, {base64: true});
+        } else if (format === 'svg') {
           const svgString = await QRCode.toString(text, {
             ...options,
             type: 'svg'
           })
-          const blob = new Blob([svgString], { type: 'image/svg+xml' })
-          saveAs(blob, `qrcode_${i + 1}.svg`)
+          zip.file(`${fileName}.svg`, svgString);
         }
       }
     }
+    
+    // 生成并下载zip文件
+    const zipBlob = await zip.generateAsync({type: 'blob'});
+    saveAs(zipBlob, `QR_code.zip`);
   } catch (error) {
     console.error('批量下载QR码时出错：', error)
   }

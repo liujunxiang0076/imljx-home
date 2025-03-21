@@ -182,6 +182,7 @@
         </el-form-item>
       </div>
 
+      <!-- 二维码颜色 -->
       <el-form-item label="二维码颜色">
         <el-color-picker
           v-model="form.foreground"
@@ -189,6 +190,7 @@
         ></el-color-picker>
       </el-form-item>
 
+      <!-- 背景颜色 -->
       <el-form-item label="背景颜色">
         <el-color-picker
           v-model="form.background"
@@ -196,6 +198,7 @@
         ></el-color-picker>
       </el-form-item>
 
+      <!-- 误差校正级别 -->
       <el-form-item label="误差校正级别">
         <el-select
           v-model="form.errorCorrectionLevel"
@@ -210,8 +213,11 @@
       </el-form-item>
     </el-form>
 
+    <!-- 二维码容器 -->
     <div class="qrcode-container">
+      <!-- 二维码显示区域 -->
       <div ref="qrcodeRef" class="qrcode"></div>
+      <!-- 二维码操作按钮 -->
       <div class="qrcode-actions" v-if="isContentValid">
         <el-button @click="downloadQRCode('png')" type="primary">
           下载 PNG

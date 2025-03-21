@@ -19,29 +19,37 @@
       <!-- 文本 -->
       <div v-if="form.contentType === 'text'">
         <el-form-item label="文本内容">
-          <el-input
-            v-model="form.text"
-            type="textarea"
-            :rows="5"
-            placeholder="请输入文本内容（每行将生成一个二维码）"
-            @input="generateQRCode"
-          ></el-input>
-        </el-form-item>
-        <div v-if="textLines && textLines.length > 1" class="text-mode-controls">
-          <el-form-item label="选择行">
-            <div class="line-selector">
-              <el-pagination 
-                background
-                layout="prev, pager, next, jumper" 
-                :total="textLines.length" 
-                :page-size="1" 
-                :current-page="currentLineIndex + 1"
-                @current-change="handlePageChange"
-                hide-on-single-page
+          <div class="tag-input-container">
+            <div class="tags-container">
+              <el-tag
+                v-for="(tag, index) in tags"
+                :key="index"
+                :type="tagTypes[index % tagTypes.length]"
+                closable
+                :effect="selectedTagIndex === index ? 'dark' : 'light'"
+                class="tag-item"
+                @click="selectTag(index)"
+                @close="removeTag(index)"
+                @dblclick="startEditTag(index)"
+              >
+                {{ tag }}
+              </el-tag>
+            </div>
+            <div v-if="isInputVisible" class="tag-input">
+              <el-input
+                ref="tagInputRef"
+                v-model="inputValue"
+                size="small"
+                @keyup.enter="handleInputConfirm"
+                @blur="handleInputConfirm"
+                placeholder="输入内容后按回车添加"
               />
             </div>
-          </el-form-item>
-        </div>
+            <el-button v-else class="button-new-tag" size="small" @click="showInput">
+              + 添加内容
+            </el-button>
+          </div>
+        </el-form-item>
       </div>
 
       <!-- 网址 -->
@@ -258,8 +266,8 @@
       <!-- 二维码显示区域 -->
       <div class="qrcode-wrapper">
         <div ref="qrcodeRef" class="qrcode"></div>
-        <div class="current-text" v-if="form.contentType === 'text' && textLines && textLines.length > 1">
-          <span class="label">当前内容:</span> {{ formatLineTooltip(currentLineIndex) }}
+        <div class="current-text" v-if="form.contentType === 'text' && tags.length > 0">
+          <span class="label">当前内容:</span> {{ formatLineTooltip(selectedTagIndex) }}
         </div>
       </div>
       <!-- 二维码操作按钮 -->
@@ -270,14 +278,14 @@
         <el-button @click="downloadQRCode('svg')" type="success" size="default">
           <el-icon><Document /></el-icon> SVG
         </el-button>
-        <el-dropdown v-if="form.contentType === 'text' && textLines && textLines.length > 1">
+        <el-dropdown v-if="form.contentType === 'text' && tags.length > 1">
           <el-button type="warning" size="default">
             <el-icon><Document /></el-icon> 批量下载 <el-icon class="el-icon--right"><arrow-down /></el-icon>
           </el-button>
           <template #dropdown>
             <el-dropdown-menu>
-              <el-dropdown-item @click="batchDownload('png')">下载所有行 (PNG)</el-dropdown-item>
-              <el-dropdown-item @click="batchDownload('svg')">下载所有行 (SVG)</el-dropdown-item>
+              <el-dropdown-item @click="batchDownload('png')">下载所有标签 (PNG)</el-dropdown-item>
+              <el-dropdown-item @click="batchDownload('svg')">下载所有标签 (SVG)</el-dropdown-item>
             </el-dropdown-menu>
           </template>
         </el-dropdown>
@@ -287,7 +295,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, watch, onMounted, computed, onUnmounted } from 'vue'
+import { ref, reactive, watch, onMounted, computed, onUnmounted, nextTick } from 'vue'
 import QRCode from 'qrcode'
 import { saveAs } from 'file-saver'
 import { ArrowDown, Download, Document } from '@element-plus/icons-vue'
@@ -295,17 +303,81 @@ import { ArrowDown, Download, Document } from '@element-plus/icons-vue'
 const qrcodeRef = ref(null)
 const canvas = ref(null)
 const isContentValid = ref(false)
-const currentLineIndex = ref(0)
+const selectedTagIndex = ref(-1)
 
+// 标签相关
+const tags = ref([])
+const tagTypes = ['', 'success', 'warning', 'danger', 'info']
+const isInputVisible = ref(false)
+const inputValue = ref('')
+const tagInputRef = ref(null)
+
+// 显示输入框
+const showInput = () => {
+  isInputVisible.value = true
+  nextTick(() => {
+    tagInputRef.value.focus()
+  })
+}
+
+// 处理输入确认
+const handleInputConfirm = () => {
+  if (inputValue.value.trim()) {
+    if (editingTagIndex.value !== -1) {
+      // 编辑现有标签
+      tags.value[editingTagIndex.value] = inputValue.value.trim()
+      editingTagIndex.value = -1
+    } else {
+      // 添加新标签
+      tags.value.push(inputValue.value.trim())
+      // 选择新添加的标签
+      selectTag(tags.value.length - 1)
+    }
+  }
+  isInputVisible.value = false
+  inputValue.value = ''
+}
+
+// 移除标签
+const removeTag = (index) => {
+  tags.value.splice(index, 1)
+  if (selectedTagIndex.value === index) {
+    // 如果删除的是当前选中的标签，选择最后一个标签
+    selectTag(tags.value.length > 0 ? tags.value.length - 1 : -1)
+  } else if (selectedTagIndex.value > index) {
+    // 如果删除的标签在选中标签之前，调整选中标签的索引
+    selectedTagIndex.value--
+  }
+}
+
+// 选择标签
+const selectTag = (index) => {
+  selectedTagIndex.value = index
+  generateQRCode()
+}
+
+// 编辑标签
+const editingTagIndex = ref(-1)
+const startEditTag = (index) => {
+  editingTagIndex.value = index
+  inputValue.value = tags.value[index]
+  isInputVisible.value = true
+  nextTick(() => {
+    tagInputRef.value.focus()
+  })
+}
+
+// 更新textLines计算属性，从tags获取内容
 const textLines = computed(() => {
-  if (form.contentType !== 'text' || !form.text) return ['']
-  return form.text.split('\n').filter(line => line.trim() !== '')
+  if (form.contentType !== 'text' || tags.value.length === 0) return ['']
+  return tags.value
 })
 
+// 更新currentLine计算属性
 const currentLine = computed(() => {
   if (!textLines.value || textLines.value.length === 0) return ''
-  const index = currentLineIndex.value >= 0 && currentLineIndex.value < textLines.value.length 
-    ? currentLineIndex.value 
+  const index = selectedTagIndex.value >= 0 && selectedTagIndex.value < textLines.value.length 
+    ? selectedTagIndex.value 
     : 0
   return textLines.value[index] || ''
 })
@@ -317,11 +389,6 @@ const formatLineTooltip = (val) => {
     return text.length > 30 ? text.substring(0, 30) + '...' : text
   }
   return val
-}
-
-const handlePageChange = (page) => {
-  currentLineIndex.value = page - 1
-  generateQRCode()
 }
 
 const form = reactive({
@@ -362,9 +429,16 @@ const form = reactive({
 const generateContent = () => {
   switch (form.contentType) {
     case 'text':
-      return form.contentType === 'text' && textLines.value && textLines.value.length > 0 
-        ? currentLine.value 
-        : form.text
+      if (form.contentType === 'text') {
+        if (tags.value.length > 0 && selectedTagIndex.value >= 0) {
+          return tags.value[selectedTagIndex.value]
+        } else if (tags.value.length > 0) {
+          // 如果有标签但没有选中任何标签，使用第一个标签
+          return tags.value[0]
+        }
+        return ''
+      }
+      return ''
     case 'url':
       return form.url
     case 'email':
@@ -406,8 +480,8 @@ const validateContent = () => {
   return content
 }
 
-// 当文本类型改变或当前行索引改变时重置验证状态
-watch([() => form.contentType, currentLineIndex], () => {
+// 修改观察器，监听标签变化
+watch(() => [form.contentType, selectedTagIndex.value], () => {
   validateContent()
 }, { immediate: true })
 
@@ -486,12 +560,12 @@ const downloadQRCode = async (format) => {
 }
 
 const batchDownload = async (format) => {
-  if (!textLines.value || textLines.value.length === 0) return
+  if (!tags.value || tags.value.length === 0) return
 
   const options = {
     errorCorrectionLevel: form.errorCorrectionLevel,
     margin: 1,
-    width: form.size, // 使用用户选择的尺寸
+    width: form.size,
     color: {
       dark: form.foreground,
       light: form.background
@@ -500,16 +574,16 @@ const batchDownload = async (format) => {
 
   try {
     if (format === 'png') {
-      for (let i = 0; i < textLines.value.length; i++) {
-        const text = textLines.value[i]
+      for (let i = 0; i < tags.value.length; i++) {
+        const text = tags.value[i]
         if (text && text.trim()) {
           const dataUrl = await QRCode.toDataURL(text, options)
           saveAs(dataUrl, `qrcode_${i + 1}.png`)
         }
       }
     } else if (format === 'svg') {
-      for (let i = 0; i < textLines.value.length; i++) {
-        const text = textLines.value[i]
+      for (let i = 0; i < tags.value.length; i++) {
+        const text = tags.value[i]
         if (text && text.trim()) {
           const svgString = await QRCode.toString(text, {
             ...options,
@@ -527,19 +601,17 @@ const batchDownload = async (format) => {
 
 watch(() => form.contentType, generateQRCode)
 
-// 当文本内容变化时，重置当前行索引
-watch(() => form.text, (newText) => {
-  if (form.contentType === 'text') {
-    const lines = newText.split('\n').filter(line => line.trim() !== '')
-    if (lines.length === 0) {
-      currentLineIndex.value = 0
-    } else if (currentLineIndex.value >= lines.length) {
-      currentLineIndex.value = Math.max(0, lines.length - 1)
+onMounted(() => {
+  // 如果有已存在的文本，转换为标签
+  if (form.text) {
+    const lines = form.text.split('\n').filter(line => line.trim() !== '')
+    if (lines.length > 0) {
+      tags.value = lines
+      // 选择第一个标签
+      selectTag(0)
     }
   }
-})
-
-onMounted(() => {
+  
   generateQRCode()
   window.addEventListener('resize', handleResize)
 })
@@ -794,6 +866,43 @@ onUnmounted(() => {
   
   .el-form-item {
     margin-bottom: 0.75rem;
+  }
+}
+
+.tag-input-container {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  border: 1px solid #e4e7ed;
+  border-radius: 4px;
+  padding: 8px;
+  background-color: #fff;
+  min-height: 120px;
+  
+  .tags-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 10px;
+    
+    .tag-item {
+      cursor: pointer;
+      transition: all 0.2s;
+      
+      &:hover {
+        transform: translateY(-2px);
+      }
+    }
+  }
+  
+  .tag-input {
+    width: 100%;
+    margin-bottom: 8px;
+  }
+  
+  .button-new-tag {
+    margin-top: 8px;
+    align-self: flex-start;
   }
 }
 

@@ -21,10 +21,27 @@
         <el-form-item label="文本内容">
           <el-input
             v-model="form.text"
-            placeholder="请输入文本内容"
+            type="textarea"
+            :rows="5"
+            placeholder="请输入文本内容（每行将生成一个二维码）"
             @input="generateQRCode"
           ></el-input>
         </el-form-item>
+        <div v-if="textLines && textLines.length > 1" class="text-mode-controls">
+          <el-form-item label="选择行">
+            <div class="line-selector">
+              <el-pagination 
+                background
+                layout="prev, pager, next, jumper" 
+                :total="textLines.length" 
+                :page-size="1" 
+                :current-page="currentLineIndex + 1"
+                @current-change="handlePageChange"
+                hide-on-single-page
+              />
+            </div>
+          </el-form-item>
+        </div>
       </div>
 
       <!-- 网址 -->
@@ -182,62 +199,130 @@
         </el-form-item>
       </div>
 
-      <!-- 二维码颜色 -->
-      <el-form-item label="二维码颜色">
-        <el-color-picker
-          v-model="form.foreground"
+      <!-- 颜色和误差校正部分重新布局 -->
+      <el-row :gutter="20" class="form-row">
+        <el-col :span="12">
+          <el-form-item label="二维码颜色">
+            <div class="color-row">
+              <div class="color-picker-group">
+                <el-color-picker
+                  v-model="form.foreground"
+                  @change="generateQRCode"
+                  size="small"
+                ></el-color-picker>
+                <span class="color-label">前景</span>
+              </div>
+              <div class="color-picker-group">
+                <el-color-picker
+                  v-model="form.background"
+                  @change="generateQRCode"
+                  size="small"
+                ></el-color-picker>
+                <span class="color-label">背景</span>
+              </div>
+            </div>
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="误差校正级别">
+            <el-select
+              v-model="form.errorCorrectionLevel"
+              placeholder="请选择误差校正级别"
+              @change="generateQRCode"
+              style="width: 100%"
+            >
+              <el-option label="低 (L)" value="L"></el-option>
+              <el-option label="中 (M)" value="M"></el-option>
+              <el-option label="高 (Q)" value="Q"></el-option>
+              <el-option label="最高 (H)" value="H"></el-option>
+            </el-select>
+          </el-form-item>
+        </el-col>
+      </el-row>
+      
+      <!-- 二维码尺寸 -->
+      <el-form-item label="二维码尺寸">
+        <el-slider
+          v-model="form.size"
+          :min="150"
+          :max="400"
+          :step="10"
+          :marks="{150: '小', 250: '中', 350: '大', 400: '最大'}"
           @change="generateQRCode"
-        ></el-color-picker>
-      </el-form-item>
-
-      <!-- 背景颜色 -->
-      <el-form-item label="背景颜色">
-        <el-color-picker
-          v-model="form.background"
-          @change="generateQRCode"
-        ></el-color-picker>
-      </el-form-item>
-
-      <!-- 误差校正级别 -->
-      <el-form-item label="误差校正级别">
-        <el-select
-          v-model="form.errorCorrectionLevel"
-          placeholder="请选择误差校正级别"
-          @change="generateQRCode"
-        >
-          <el-option label="低 (L)" value="L"></el-option>
-          <el-option label="中 (M)" value="M"></el-option>
-          <el-option label="高 (Q)" value="Q"></el-option>
-          <el-option label="最高 (H)" value="H"></el-option>
-        </el-select>
+        ></el-slider>
       </el-form-item>
     </el-form>
 
     <!-- 二维码容器 -->
     <div class="qrcode-container">
       <!-- 二维码显示区域 -->
-      <div ref="qrcodeRef" class="qrcode"></div>
+      <div class="qrcode-wrapper">
+        <div ref="qrcodeRef" class="qrcode"></div>
+        <div class="current-text" v-if="form.contentType === 'text' && textLines && textLines.length > 1">
+          <span class="label">当前内容:</span> {{ formatLineTooltip(currentLineIndex) }}
+        </div>
+      </div>
       <!-- 二维码操作按钮 -->
       <div class="qrcode-actions" v-if="isContentValid">
-        <el-button @click="downloadQRCode('png')" type="primary">
-          下载 PNG
+        <el-button @click="downloadQRCode('png')" type="primary" size="default">
+          <el-icon><Download /></el-icon> PNG
         </el-button>
-        <el-button @click="downloadQRCode('svg')" type="success">
-          下载 SVG
+        <el-button @click="downloadQRCode('svg')" type="success" size="default">
+          <el-icon><Document /></el-icon> SVG
         </el-button>
+        <el-dropdown v-if="form.contentType === 'text' && textLines && textLines.length > 1">
+          <el-button type="warning" size="default">
+            <el-icon><Document /></el-icon> 批量下载 <el-icon class="el-icon--right"><arrow-down /></el-icon>
+          </el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item @click="batchDownload('png')">下载所有行 (PNG)</el-dropdown-item>
+              <el-dropdown-item @click="batchDownload('svg')">下载所有行 (SVG)</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, watch, onMounted, computed } from 'vue'
+import { ref, reactive, watch, onMounted, computed, onUnmounted } from 'vue'
 import QRCode from 'qrcode'
 import { saveAs } from 'file-saver'
+import { ArrowDown, Download, Document } from '@element-plus/icons-vue'
 
 const qrcodeRef = ref(null)
 const canvas = ref(null)
 const isContentValid = ref(false)
+const currentLineIndex = ref(0)
+
+const textLines = computed(() => {
+  if (form.contentType !== 'text' || !form.text) return ['']
+  return form.text.split('\n').filter(line => line.trim() !== '')
+})
+
+const currentLine = computed(() => {
+  if (!textLines.value || textLines.value.length === 0) return ''
+  const index = currentLineIndex.value >= 0 && currentLineIndex.value < textLines.value.length 
+    ? currentLineIndex.value 
+    : 0
+  return textLines.value[index] || ''
+})
+
+const formatLineTooltip = (val) => {
+  if (textLines.value && textLines.value[val]) {
+    // 显示前30个字符，如果内容更长则添加...
+    const text = textLines.value[val]
+    return text.length > 30 ? text.substring(0, 30) + '...' : text
+  }
+  return val
+}
+
+const handlePageChange = (page) => {
+  currentLineIndex.value = page - 1
+  generateQRCode()
+}
 
 const form = reactive({
   contentType: 'text',
@@ -270,13 +355,16 @@ const form = reactive({
   },
   foreground: '#000000',
   background: '#ffffff',
-  errorCorrectionLevel: 'M'
+  errorCorrectionLevel: 'M',
+  size: 250 // 默认尺寸
 })
 
 const generateContent = () => {
   switch (form.contentType) {
     case 'text':
-      return form.text
+      return form.contentType === 'text' && textLines.value && textLines.value.length > 0 
+        ? currentLine.value 
+        : form.text
     case 'url':
       return form.url
     case 'email':
@@ -318,13 +406,24 @@ const validateContent = () => {
   return content
 }
 
+// 当文本类型改变或当前行索引改变时重置验证状态
+watch([() => form.contentType, currentLineIndex], () => {
+  validateContent()
+}, { immediate: true })
+
 const generateQRCode = () => {
   const content = validateContent()
   if (!content) return
 
+  // 计算适合的QR码尺寸
+  const padding = window.innerWidth <= 768 ? 32 : 80
+  const containerWidth = Math.min(window.innerWidth - padding, 600)
+  const optimalSize = Math.min(form.size, containerWidth)
+
   const options = {
     errorCorrectionLevel: form.errorCorrectionLevel,
-    margin: 1,
+    margin: 2, // 减少边距
+    width: optimalSize,
     color: {
       dark: form.foreground,
       light: form.background
@@ -342,8 +441,17 @@ const generateQRCode = () => {
     // 生成QR码
     QRCode.toCanvas(canvas.value, content, options, (error) => {
       if (error) console.error(error)
+      // 确保页面可滚动到底部
+      setTimeout(() => {
+        window.dispatchEvent(new Event('resize'))
+      }, 100)
     })
   }
+}
+
+// 监听窗口大小变化，重新生成二维码
+const handleResize = () => {
+  generateQRCode()
 }
 
 const downloadQRCode = async (format) => {
@@ -353,6 +461,7 @@ const downloadQRCode = async (format) => {
   const options = {
     errorCorrectionLevel: form.errorCorrectionLevel,
     margin: 1,
+    width: form.size, // 使用用户选择的尺寸
     color: {
       dark: form.foreground,
       light: form.background
@@ -376,48 +485,338 @@ const downloadQRCode = async (format) => {
   }
 }
 
+const batchDownload = async (format) => {
+  if (!textLines.value || textLines.value.length === 0) return
+
+  const options = {
+    errorCorrectionLevel: form.errorCorrectionLevel,
+    margin: 1,
+    width: form.size, // 使用用户选择的尺寸
+    color: {
+      dark: form.foreground,
+      light: form.background
+    }
+  }
+
+  try {
+    if (format === 'png') {
+      for (let i = 0; i < textLines.value.length; i++) {
+        const text = textLines.value[i]
+        if (text && text.trim()) {
+          const dataUrl = await QRCode.toDataURL(text, options)
+          saveAs(dataUrl, `qrcode_${i + 1}.png`)
+        }
+      }
+    } else if (format === 'svg') {
+      for (let i = 0; i < textLines.value.length; i++) {
+        const text = textLines.value[i]
+        if (text && text.trim()) {
+          const svgString = await QRCode.toString(text, {
+            ...options,
+            type: 'svg'
+          })
+          const blob = new Blob([svgString], { type: 'image/svg+xml' })
+          saveAs(blob, `qrcode_${i + 1}.svg`)
+        }
+      }
+    }
+  } catch (error) {
+    console.error('批量下载QR码时出错：', error)
+  }
+}
+
 watch(() => form.contentType, generateQRCode)
+
+// 当文本内容变化时，重置当前行索引
+watch(() => form.text, (newText) => {
+  if (form.contentType === 'text') {
+    const lines = newText.split('\n').filter(line => line.trim() !== '')
+    if (lines.length === 0) {
+      currentLineIndex.value = 0
+    } else if (currentLineIndex.value >= lines.length) {
+      currentLineIndex.value = Math.max(0, lines.length - 1)
+    }
+  }
+})
 
 onMounted(() => {
   generateQRCode()
+  window.addEventListener('resize', handleResize)
+})
+
+// 组件卸载时移除事件监听
+onUnmounted(() => {
+  window.removeEventListener('resize', handleResize)
 })
 </script>
 
 <style lang="scss" scoped>
 .qrcode-generator {
-  max-width: 600px;
+  max-width: 650px;
+  width: 100%;
   margin: 0 auto;
-  padding: 1.5rem;
+  padding: 1rem 1.5rem 2rem;
+  overflow-y: auto;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
   
   h1 {
     text-align: center;
     margin-bottom: 1.5rem;
+    font-size: 1.8rem;
+    color: #303133;
+  }
+}
+
+.form-row {
+  margin-bottom: 0;
+}
+
+.color-row {
+  display: flex;
+  gap: 1.5rem;
+  
+  .color-picker-group {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    
+    .color-label {
+      margin-top: 5px;
+      font-size: 0.8rem;
+      color: #909399;
+    }
+  }
+}
+
+.text-mode-controls {
+  margin-top: 1rem;
+  border: 1px solid #ebeef5;
+  border-radius: 8px;
+  padding: 1.25rem;
+  background-color: #f8f9fa;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  
+  .line-selector {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 0.5rem;
+    
+    :deep(.el-pagination) {
+      justify-content: center;
+      .el-pagination__jump {
+        margin-left: 12px;
+      }
+    }
+  }
+  
+  .line-preview {
+    display: inline-block;
+    margin: 0.5rem auto;
+    padding: 5px 10px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    text-align: center;
   }
 }
 
 .qrcode-container {
   margin-top: 1.5rem;
+  margin-bottom: 2rem;
   display: flex;
   flex-direction: column;
   align-items: center;
+  width: 100%;
+}
+
+.qrcode-wrapper {
+  background-color: #ffffff;
+  padding: 0.75rem;
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: auto;
+  margin: 0 auto;
+  overflow: visible;
+  transform: translateZ(0);
   
   .qrcode {
-    background-color: #ffffff;
-    padding: 1rem;
-    border-radius: 8px;
-    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 0.5rem;
+    overflow: visible;
+    
+    canvas {
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+      border-radius: 4px;
+      display: block;
+      max-width: 100%;
+    }
   }
   
-  .qrcode-actions {
-    margin-top: 1rem;
+  .current-text {
+    margin-top: 0.75rem;
+    text-align: center;
+    color: #606266;
+    font-size: 0.9rem;
+    padding: 0.5rem;
+    background-color: #f8f9fa;
+    border-radius: 4px;
+    max-width: 100%;
+    width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    
+    .label {
+      color: #909399;
+      margin-right: 0.5rem;
+      font-weight: 500;
+    }
+  }
+}
+
+.qrcode-actions {
+  margin-top: 1.25rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: center;
+  
+  :deep(.el-button) {
     display: flex;
-    gap: 1rem;
+    align-items: center;
+    
+    .el-icon {
+      margin-right: 4px;
+    }
   }
 }
 
 @media (max-width: 768px) {
   .qrcode-generator {
+    padding: 0.75rem 0.5rem 1.5rem;
+    height: auto;
+    
+    h1 {
+      font-size: 1.5rem;
+      margin-bottom: 1rem;
+    }
+  }
+  
+  .text-mode-controls {
+    padding: 0.75rem 0.5rem;
+    
+    .line-selector {
+      :deep(.el-pagination) {
+        .el-pagination__jump {
+          display: none;
+        }
+      }
+    }
+  }
+  
+  .qrcode-wrapper {
+    padding: 0.75rem 0.5rem;
+    width: fit-content;
+    max-width: 95%;
+    
+    .qrcode canvas {
+      max-width: 100%;
+    }
+    
+    .current-text {
+      font-size: 0.8rem;
+      padding: 0.4rem;
+    }
+  }
+  
+  .qrcode-actions {
+    gap: 0.5rem;
+    width: 100%;
+    
+    .el-button {
+      flex: 1;
+      min-width: 0;
+      padding-left: 0.5rem;
+      padding-right: 0.5rem;
+    }
+    
+    .el-dropdown {
+      width: 100%;
+      
+      .el-button {
+        width: 100%;
+      }
+    }
+  }
+  
+  // 调整滑块在移动端的宽度
+  :deep(.el-slider) {
+    width: 100%;
+  }
+  
+  .el-row {
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .color-row {
+    justify-content: flex-start;
+  }
+}
+
+// 当屏幕高度有限时缩小内容间距
+@media (max-height: 700px) {
+  .qrcode-generator {
+    padding-top: 0.75rem;
+    
+    h1 {
+      margin-bottom: 1rem;
+    }
+  }
+  
+  .qrcode-container {
+    margin-top: 1rem;
+  }
+  
+  .qrcode-wrapper {
     padding: 1rem;
   }
+  
+  .el-form-item {
+    margin-bottom: 0.75rem;
+  }
+}
+
+/* 全局样式 */
+</style>
+
+<style lang="scss">
+/* 添加全局样式确保页面可滚动 */
+html, body {
+  height: 100%;
+  overflow-y: auto !important;
+  min-height: 100vh;
+}
+
+.el-main {
+  overflow-y: auto !important;
+  padding-bottom: 2rem;
+  height: auto;
+  min-height: 100vh;
+}
+
+.el-container {
+  height: auto;
+  min-height: 100vh;
 }
 </style> 

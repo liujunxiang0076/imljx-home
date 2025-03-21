@@ -5,7 +5,11 @@
       <div class="loader"></div>
     </div>
     <div class="search-content">
-      <TimeDisplay />
+      <Transition name="time-display">
+        <div class="time-display-wrapper">
+          <TimeDisplay />
+        </div>
+      </Transition>
       <div 
         class="search-bar" 
         :class="{ 'expanded': isExpanded }" 
@@ -140,7 +144,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch, h } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, h, nextTick } from 'vue'
 import { Listbox, ListboxButton, ListboxOptions, ListboxOption } from '@headlessui/vue'
 import { 
   ChevronDownIcon, 
@@ -227,6 +231,9 @@ const placeholder = computed(() => {
 // 引擎名称动画控制
 const engineNameTransition = ref(false)
 const prevEngineName = ref(getSelectedEngineName())
+
+// 添加时间显示状态控制
+const timeDisplayReady = ref(false)
 
 // 执行搜索
 const search = () => {
@@ -406,35 +413,72 @@ onClickOutside(searchBarRef, () => {
 
 // 获取Bing每日图片
 const fetchBingImage = async () => {
-  isLoading.value = true
+  // 如果已经有背景图片，先不显示加载状态
+  if (!backgroundImage.value) {
+    isLoading.value = true
+  }
   error.value = null
   
   try {
-    // 使用服务器API路由
     const response = await fetch('/api/bing-image')
     const data = await response.json()
     
     if (data && data.url) {
-      backgroundImage.value = data.url
-      imageInfo.value = {
-        copyright: data.copyright,
-        title: data.title
+      // 预加载图片
+      const img = new Image()
+      img.src = data.url
+      img.onload = () => {
+        backgroundImage.value = data.url
+        imageInfo.value = {
+          copyright: data.copyright,
+          title: data.title
+        }
+        isLoading.value = false
+      }
+      img.onerror = () => {
+        error.value = '加载背景图片失败'
+        isLoading.value = false
       }
     } else if (data.error) {
       error.value = data.error
       console.error('获取Bing图片失败:', data.error)
+      isLoading.value = false
     }
   } catch (error) {
     console.error('获取Bing图片失败:', error)
     error.value = '无法加载背景图片'
-  } finally {
     isLoading.value = false
   }
 }
 
 // 组件挂载时获取背景图片
 onMounted(() => {
-  fetchBingImage()
+  // 立即设置时间显示就绪状态
+  timeDisplayReady.value = true
+  
+  // 如果有缓存的背景图片，先使用缓存
+  const cachedImage = localStorage.getItem('backgroundImage')
+  const cachedInfo = localStorage.getItem('imageInfo')
+  
+  if (cachedImage) {
+    backgroundImage.value = cachedImage
+    if (cachedInfo) {
+      imageInfo.value = JSON.parse(cachedInfo)
+    }
+    isLoading.value = false
+  }
+  
+  // 异步获取新的背景图片
+  fetchBingImage().then(() => {
+    // 缓存新的背景图片
+    if (backgroundImage.value) {
+      localStorage.setItem('backgroundImage', backgroundImage.value)
+      if (imageInfo.value) {
+        localStorage.setItem('imageInfo', JSON.stringify(imageInfo.value))
+      }
+    }
+  })
+  
   window.addEventListener('keydown', handleKeyDown)
 })
 
@@ -527,6 +571,17 @@ $transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
   align-items: center;
   margin-top: 15vh;
   z-index: 2;
+  width: 100%;
+  min-height: 120px; // 为时间显示预留固定空间
+}
+
+.time-display-wrapper {
+  width: 100%;
+  height: 60px; // 固定时间显示区域高度
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 1rem;
 }
 
 .loading-overlay {
@@ -1133,5 +1188,16 @@ $transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
 .fade-slide-leave-to {
   opacity: 0;
   transform: translateX(-10px);
+}
+
+// 添加时间显示的淡入动画
+.time-display-enter-active,
+.time-display-leave-active {
+  transition: opacity 0.3s ease;
+}
+
+.time-display-enter-from,
+.time-display-leave-to {
+  opacity: 0;
 }
 </style> 

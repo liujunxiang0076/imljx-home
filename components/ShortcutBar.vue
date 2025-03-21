@@ -144,6 +144,39 @@ onUnmounted(() => {
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.3);
   z-index: 100;
+  max-width: 90vw;
+  width: max-content;
+
+  @media (max-width: 640px) {
+    bottom: 1rem;
+    padding: 0.5rem 1rem;
+    gap: 0.75rem;
+    border-radius: 0.75rem;
+  }
+
+  @media (max-width: 380px) {
+    padding: 0.4rem 0.75rem;
+    gap: 0.5rem;
+  }
+
+  // 适配横屏模式
+  @media (max-height: 480px) and (orientation: landscape) {
+    bottom: 0.75rem;
+    padding: 0.4rem 1rem;
+  }
+
+  // 适配深色模式和减弱动效
+  @media (prefers-color-scheme: dark) {
+    background-color: rgba(0, 0, 0, 0.2);
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    animation-duration: 0.1s;
+    .shortcut-item {
+      animation-duration: 0.1s;
+    }
+  }
 }
 
 .animate-slide-up {
@@ -167,6 +200,14 @@ onUnmounted(() => {
   animation: iconFadeIn 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
   animation-delay: var(--delay);
 
+  @media (max-width: 640px) {
+    width: 3.25rem;
+  }
+
+  @media (max-width: 380px) {
+    width: 3rem;
+  }
+
   &:hover {
     .shortcut-icon {
       background-color: rgba(255, 255, 255, 0.95);
@@ -180,6 +221,17 @@ onUnmounted(() => {
 
     .shortcut-name {
       text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    }
+  }
+
+  // 触摸设备的悬浮效果优化
+  @media (hover: none) {
+    &:active {
+      .shortcut-icon {
+        background-color: rgba(255, 255, 255, 0.95);
+        transform: scale(0.95);
+        transition: all 0.1s ease;
+      }
     }
   }
 }
@@ -198,10 +250,32 @@ onUnmounted(() => {
   transform: scale(1);
   will-change: transform;
   
+  @media (max-width: 640px) {
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 0.6rem;
+    margin-bottom: 0.35rem;
+  }
+
+  @media (max-width: 380px) {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 0.5rem;
+    margin-bottom: 0.25rem;
+  }
+  
   .el-icon {
     font-size: 1.5rem;
     color: #409EFF;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+    @media (max-width: 640px) {
+      font-size: 1.25rem;
+    }
+
+    @media (max-width: 380px) {
+      font-size: 1.1rem;
+    }
   }
 }
 
@@ -211,6 +285,14 @@ onUnmounted(() => {
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
   white-space: nowrap;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+  @media (max-width: 640px) {
+    font-size: 0.7rem;
+  }
+
+  @media (max-width: 380px) {
+    font-size: 0.65rem;
+  }
 }
 
 /* 暗色模式适配 */
@@ -230,6 +312,15 @@ onUnmounted(() => {
 
       .el-icon {
         color: #5e9cee;
+      }
+    }
+  }
+
+  // 触摸设备的暗色模式点击效果
+  @media (hover: none) {
+    .shortcut-item:active {
+      .shortcut-icon {
+        background-color: rgba(44, 44, 44, 0.95);
       }
     }
   }

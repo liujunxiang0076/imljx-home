@@ -16,6 +16,8 @@
           :to="shortcut.path"
           class="shortcut-item"
           :style="{ '--delay': `${(index * 0.1) + 0.3}s` }"
+          target="_blank"
+          rel="noopener noreferrer"
         >
           <div class="shortcut-icon">
             <el-icon>
@@ -72,7 +74,7 @@ const shortcuts = ref([
   },
   { 
     name: '邮件', 
-    path: '#', 
+    path: 'https://wx.mail.qq.com/', 
     iconName: 'Message'
   },
   { 
@@ -82,7 +84,7 @@ const shortcuts = ref([
   },
   { 
     name: '图库', 
-    path: '#', 
+    path: 'https://imgbed.liujunxiang0076.site/', 
     iconName: 'Picture'
   },
 ])

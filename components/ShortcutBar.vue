@@ -135,22 +135,23 @@ onUnmounted(() => {
   left: 50%;
   transform: translateX(-50%);
   display: flex;
-  gap: 1rem;
-  background-color: rgba(255, 255, 255, 0.2);
+  gap: 1.5rem;
+  padding: 0.8rem 1.5rem;
+  background: rgba(255, 255, 255, 0.12);
   backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border-radius: 1rem;
-  padding: 0.75rem 1.5rem;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  z-index: 100;
+  border-radius: 12px;
   max-width: 90vw;
   width: max-content;
+  margin: 0 auto;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1),
+              0 2px 4px rgba(0, 0, 0, 0.06),
+              inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+  z-index: 100;
 
   @media (max-width: 640px) {
     bottom: 1rem;
-    padding: 0.5rem 1rem;
-    gap: 0.75rem;
+    padding: 0.6rem 1rem;
+    gap: 1rem;
     border-radius: 0.75rem;
   }
 
@@ -167,8 +168,10 @@ onUnmounted(() => {
 
   // 适配深色模式和减弱动效
   @media (prefers-color-scheme: dark) {
-    background-color: rgba(0, 0, 0, 0.2);
-    border-color: rgba(255, 255, 255, 0.1);
+    background: rgba(0, 0, 0, 0.2);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2),
+                0 2px 4px rgba(0, 0, 0, 0.1),
+                inset 0 0 0 1px rgba(255, 255, 255, 0.05);
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -191,47 +194,65 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  border-radius: 8px;
   cursor: pointer;
-  width: 4rem;
-  text-decoration: none;
-  transform: scale(0.3);
-  opacity: 0;
-  animation: iconFadeIn 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-  animation-delay: var(--delay);
-
-  @media (max-width: 640px) {
-    width: 3.25rem;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0);
+    transition: all 0.3s ease;
   }
-
-  @media (max-width: 380px) {
-    width: 3rem;
+  
+  .icon {
+    width: 24px;
+    height: 24px;
+    color: rgba(255, 255, 255, 0.9);
+    position: relative;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+    transition: all 0.3s ease;
+    will-change: transform;
   }
-
+  
+  .label {
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.9);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
+    white-space: nowrap;
+    font-weight: 400;
+  }
+  
   &:hover {
-    .shortcut-icon {
-      background-color: rgba(255, 255, 255, 0.95);
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-      transform: scale(1.1);
-
-      .el-icon {
-        color: #409EFF;
-      }
+    transform: translateY(-2px);
+    
+    &::before {
+      background: rgba(255, 255, 255, 0.1);
     }
-
-    .shortcut-name {
-      text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    
+    .icon {
+      color: rgba(255, 255, 255, 1);
+      transform: scale(1.1);
+      filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.2));
+    }
+    
+    .label {
+      color: rgba(255, 255, 255, 1);
+      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
     }
   }
-
-  // 触摸设备的悬浮效果优化
-  @media (hover: none) {
-    &:active {
-      .shortcut-icon {
-        background-color: rgba(255, 255, 255, 0.95);
-        transform: scale(0.95);
-        transition: all 0.1s ease;
-      }
+  
+  &:active {
+    transform: translateY(0);
+    
+    .icon {
+      transform: scale(0.95);
     }
   }
 }
@@ -321,6 +342,27 @@ onUnmounted(() => {
     .shortcut-item:active {
       .shortcut-icon {
         background-color: rgba(44, 44, 44, 0.95);
+      }
+    }
+  }
+}
+
+// 触摸设备适配
+@media (hover: none) {
+  .shortcut-bar {
+    .shortcut-item {
+      &:active {
+        transform: scale(0.95);
+        background: rgba(255, 255, 255, 0.15);
+        
+        .icon {
+          transform: scale(1.1);
+          color: rgba(255, 255, 255, 1);
+        }
+        
+        .label {
+          color: rgba(255, 255, 255, 1);
+        }
       }
     }
   }

@@ -267,7 +267,16 @@
       <div class="qrcode-wrapper">
         <div ref="qrcodeRef" class="qrcode"></div>
         <div class="current-text" v-if="form.contentType === 'text' && tags.length > 0">
-          <span class="label">当前内容:</span> {{ formatLineTooltip(selectedTagIndex) }}
+          <el-tooltip
+            effect="dark"
+            :content="textLines[selectedTagIndex]"
+            placement="top"
+            :disabled="!isTextTooLong(textLines[selectedTagIndex])"
+          >
+            <div class="text-content">
+              <span class="label">当前内容:</span> {{ formatLineTooltip(selectedTagIndex) }}
+            </div>
+          </el-tooltip>
         </div>
       </div>
       <!-- 二维码操作按钮 -->
@@ -392,6 +401,12 @@ const formatLineTooltip = (val) => {
   }
   return val
 }
+
+// 判断文本是否过长需要提示
+const isTextTooLong = (text) => {
+  return text && text.length > 30;
+}
+
 // 表单
 const form = reactive({
   contentType: 'text',
@@ -772,9 +787,13 @@ onUnmounted(() => {
     border-radius: 4px;
     max-width: 100%;
     width: 100%;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    
+    .text-content {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      cursor: pointer;
+    }
     
     .label {
       color: #909399;

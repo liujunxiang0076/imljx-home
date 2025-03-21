@@ -44,7 +44,7 @@ onUnmounted(() => {
   color: #ffffff;
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
   transform-origin: center;
-  
+  margin-bottom: 50px;
   .time {
     font-size: 5rem;
     font-weight: 300;

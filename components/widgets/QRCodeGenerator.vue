@@ -383,6 +383,7 @@ const currentLine = computed(() => {
   return textLines.value[index] || ''
 })
 
+// 格式化行提示
 const formatLineTooltip = (val) => {
   if (textLines.value && textLines.value[val]) {
     // 显示前30个字符，如果内容更长则添加...
@@ -391,7 +392,7 @@ const formatLineTooltip = (val) => {
   }
   return val
 }
-
+// 表单
 const form = reactive({
   contentType: 'text',
   text: '',
@@ -427,6 +428,7 @@ const form = reactive({
   size: 250 // 默认尺寸
 })
 
+// 生成内容
 const generateContent = () => {
   switch (form.contentType) {
     case 'text':
@@ -475,6 +477,7 @@ const generateContent = () => {
   }
 }
 
+// 验证内容
 const validateContent = () => {
   const content = generateContent()
   isContentValid.value = content.length > 0
@@ -486,6 +489,7 @@ watch(() => [form.contentType, selectedTagIndex.value], () => {
   validateContent()
 }, { immediate: true })
 
+// 生成二维码
 const generateQRCode = () => {
   const content = validateContent()
   if (!content) return
@@ -540,7 +544,7 @@ const getSafeFileName = (text, maxLength = 50) => {
   // 确保文件名不为空
   return fileName || 'qrcode';
 }
-
+// 下载二维码
 const downloadQRCode = async (format) => {
   const content = validateContent()
   if (!content) return
@@ -575,6 +579,7 @@ const downloadQRCode = async (format) => {
   }
 }
 
+// 批量下载二维码
 const batchDownload = async (format) => {
   if (!tags.value || tags.value.length === 0) return
 

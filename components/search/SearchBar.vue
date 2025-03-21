@@ -1,15 +1,18 @@
 <template>
   <div class="search-container" :style="backgroundStyle">
+    <!-- 欢迎提示 -->
     <WelcomeToast />
     <div class="loading-overlay" v-if="isLoading">
       <div class="loader"></div>
     </div>
     <div class="search-content">
+      <!-- 时间显示 -->
       <Transition name="time-display">
         <div class="time-display-wrapper">
           <TimeDisplay />
         </div>
       </Transition>
+      <!-- 搜索栏 -->
       <div 
         class="search-bar" 
         :class="{ 'expanded': isExpanded }" 
@@ -19,12 +22,14 @@
       >
         <!-- 使用HeadlessUI的Listbox组件实现搜索引擎选择 -->
         <div class="engine-selector-container">
+          <!-- 选择引擎按钮 -->
           <Listbox 
             v-model="selectedEngine" 
             as="div" 
             class="engine-selector" 
             @update:modelValue="handleEngineChange"
           >
+            <!-- 选择引擎按钮 -->
             <div class="relative w-full h-full">
               <ListboxButton 
                 class="selected-engine" 
@@ -34,6 +39,7 @@
                 }"
                 @click="isEngineClicked = true"
               >
+                <!-- 引擎按钮内容 -->
                 <div class="engine-button-content">
                   <img 
                     :src="getSelectedEngine().icon" 
@@ -42,7 +48,7 @@
                   />
                 </div>
               </ListboxButton>
-              
+              <!-- 引擎下拉菜单 -->
               <transition
                 leave-active-class="transition duration-100 ease-in"
                 leave-from-class="opacity-100"
@@ -50,6 +56,7 @@
                 @before-enter="handleDropdownOpen"
                 @after-leave="handleDropdownClose"
               >
+                <!-- 引擎选项列表 -->
                 <ListboxOptions class="engine-dropdown">
                   <ListboxOption
                     v-for="engine in searchEngines"
@@ -59,6 +66,7 @@
                     as="template"
                     @click="isEngineClicked = false"
                   >
+                    <!-- 引擎选项 -->
                     <li :class="[
                       'engine-option',
                       selected ? 'selected' : ''
@@ -75,7 +83,7 @@
             </div>
           </Listbox>
         </div>
-        
+        <!-- 搜索输入框 -->
         <input 
           v-model="searchQuery" 
           type="text" 
@@ -86,7 +94,7 @@
           @blur="handleBlur"
           :class="{ 'engine-name-transition': engineNameTransition }"
         />
-        
+        <!-- 搜索按钮 -->
         <transition name="fade-slide">
           <button class="search-btn" @click="search" v-if="isExpanded">
             <MagnifyingGlassIcon class="search-icon" aria-hidden="true" />
@@ -97,12 +105,14 @@
       <!-- 搜索建议下拉列表 -->
       <transition name="suggestion-fade">
         <div class="search-suggestions" v-if="showSuggestions && suggestions.length > 0">
+          <!-- 搜索建议头部 -->
           <div class="suggestion-header">
             <span class="suggestion-title">{{ getSelectedEngineName() }}搜索建议</span>
             <button class="close-suggestions" @click="closeSuggestions">
               <XMarkIcon class="close-icon" aria-hidden="true" />
             </button>
           </div>
+          <!-- 搜索建议列表 -->
           <ul class="suggestion-list">
             <li 
               v-for="(suggestion, index) in suggestions" 
@@ -111,8 +121,11 @@
               @mouseenter="highlightIndex = index"
               :class="{ 'highlighted': highlightIndex === index }"
             >
+              <!-- 搜索建议图标 -->
               <MagnifyingGlassIcon class="suggestion-icon" aria-hidden="true" />
+              <!-- 搜索建议内容 -->
               <span v-html="highlightMatch(suggestion)"></span>
+              <!-- 向上箭头图标 -->
               <ArrowUpRightIcon 
                 class="go-icon" 
                 aria-hidden="true" 
@@ -120,17 +133,21 @@
               />
             </li>
           </ul>
+          <!-- 搜索建议底部提示 -->
           <div class="suggestion-footer">
+            <!-- 键盘提示 -->
             <span class="keyboard-hint">
+              <!-- 向上箭头提示 -->
               <span class="key-hint">
                 <ArrowUpIcon class="arrow-icon" />
-                <ArrowDownIcon class="arrow-icon" />
                 <span class="key-text">选择</span>
               </span>
+              <!-- 确认键提示 -->
               <span class="key-hint">
                 <span class="key-box">Enter</span>
                 <span class="key-text">确认</span>
               </span>
+              <!-- 关闭提示 -->
               <span class="key-hint">
                 <span class="key-box">Esc</span>
                 <span class="key-text">关闭</span>
@@ -144,7 +161,6 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch, h, nextTick } from 'vue'
 import { Listbox, ListboxButton, ListboxOptions, ListboxOption } from '@headlessui/vue'
 import { 
   ChevronDownIcon, 
@@ -479,6 +495,7 @@ onMounted(() => {
     }
   })
   
+  // 监听键盘事件
   window.addEventListener('keydown', handleKeyDown)
 })
 

@@ -10,7 +10,6 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
 
 const show = ref(false)
 let showTimer = null

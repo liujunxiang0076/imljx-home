@@ -38,7 +38,8 @@ import {
   Document, 
   Message, 
   VideoPlay, 
-  Picture
+  Picture,
+  UploadFilled
 } from '@element-plus/icons-vue'
 
 const show = ref(false)
@@ -55,7 +56,8 @@ const iconMap = {
   Document,
   Message,
   VideoPlay,
-  Picture
+  Picture,
+  UploadFilled
 }
 
 const getIcon = (name) => {
@@ -72,6 +74,11 @@ const shortcuts = ref([
     name: '二维码', 
     path: '/qrcode', 
     iconName: 'Document'
+  },
+  { 
+    name: '云存储', 
+    path: '/r2-storage', 
+    iconName: 'UploadFilled'
   },
   { 
     name: '邮件', 

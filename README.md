@@ -13,6 +13,7 @@
 - **HTTP**: h3 (v1.15.1)
 - **二维码**: qrcode (v1.5.4)
 - **文件处理**: file-saver (v2.0.5), jszip (v3.10.1)
+- **云存储**: @aws-sdk/client-s3, @aws-sdk/s3-request-presigner
 
 ## 功能特点
 
@@ -30,6 +31,12 @@
   - 自动根据内容命名下载文件
   - 文本过长时提供悬停提示显示完整内容
   - 批量下载时自动压缩为ZIP文件
+- Cloudflare R2云存储
+  - 文件上传与下载
+  - 文件预览与管理
+  - 上传进度显示
+  - 预签名URL支持
+  - 文件批量管理
 
 ## 开发环境
 
@@ -83,6 +90,7 @@ pnpm build
 - `app.vue` - 应用入口
 - `vercel.json` - Vercel部署配置
 - `server/api/bing-image.ts` - 必应壁纸API配置
+- `.env` - 环境变量配置（可选，也可以使用Web界面配置）
 
 ## 组件
 
@@ -109,6 +117,33 @@ pnpm build
   - 批量生成和下载（自动打包为ZIP）
   - 智能文件命名：根据内容自动生成文件名
 
+### Cloudflare R2存储
+
+`pages/r2-storage.vue` 提供与Cloudflare R2对象存储的集成：
+
+- 文件管理
+  - 拖拽上传文件
+  - 实时进度条显示
+  - 文件列表展示（名称、大小、修改时间）
+  - 文件删除功能
+
+- 安全特性
+  - 使用预签名URL进行上传和下载
+  - 自动过期的临时访问链接
+  - 服务端API安全控制
+
+- 配置界面
+  - 可视化配置R2连接信息
+  - 本地存储配置（无需修改环境变量）
+  - 配置测试功能
+  - 安全密码输入框
+
+- 使用方法
+  - 访问`/r2-storage`页面
+  - 点击"设置配置"按钮
+  - 输入R2凭证信息
+  - 测试连接成功后开始使用
+
 ## API
 
 ### 必应每日壁纸
@@ -121,6 +156,31 @@ GET /api/bing-image
 - 图片URL
 - 版权信息
 - 标题
+
+### Cloudflare R2 API
+
+```typescript
+GET /api/r2?action=list
+```
+列出R2存储桶中的所有对象
+
+```typescript
+POST /api/r2?action=getUploadUrl
+// body: { fileName: string, contentType: string }
+```
+获取文件上传预签名URL
+
+```typescript
+POST /api/r2?action=getDownloadUrl
+// body: { fileName: string }
+```
+获取文件下载预签名URL
+
+```typescript
+POST /api/r2?action=delete
+// body: { fileName: string }
+```
+删除指定的文件
 
 ## 许可证
 

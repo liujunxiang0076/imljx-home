@@ -1,7 +1,8 @@
 <template>
-  <Transition name="fade">
-    <div v-show="mounted" class="time-display">
-      {{ currentTime }}
+  <Transition name="time-fade">
+    <div class="time-display" v-show="mounted">
+      <div class="time">{{ currentTime }}</div>
+      <div class="greeting">{{ greeting }}</div>
     </div>
   </Transition>
 </template>
@@ -21,48 +22,79 @@ const updateTime = () => {
 }
 
 onMounted(() => {
-  updateTime()
-  timer = setInterval(updateTime, 1000)
-  // 添加一个小延迟来确保平滑过渡
+  // 添加小延迟以确保动画效果
   setTimeout(() => {
     mounted.value = true
   }, 100)
-})
-
-onUnmounted(() => {
-  if (timer) clearInterval(timer)
+  
+  updateTime()
+  const timer = setInterval(updateTime, 1000)
+  
+  onUnmounted(() => {
+    clearInterval(timer)
+  })
 })
 </script>
 
 <style lang="scss" scoped>
 .time-display {
-  font-size: 5rem;
-  font-weight: 300;
+  text-align: center;
   color: #ffffff;
-  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
-  margin-bottom: 2rem;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  opacity: 0.9;
-  letter-spacing: -2px;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
   
-  @media (max-width: 768px) {
-    font-size: 4rem;
-    margin-bottom: 1.5rem;
+  .time {
+    font-size: 5rem;
+    font-weight: 300;
+    line-height: 1;
+    margin-bottom: 0.5rem;
+    
+    @media (max-width: 768px) {
+      font-size: 4rem;
+    }
+    
+    @media (max-width: 480px) {
+      font-size: 3rem;
+    }
   }
   
-  @media (max-width: 480px) {
-    font-size: 3.5rem;
-    margin-bottom: 1rem;
+  .greeting {
+    font-size: 1.5rem;
+    opacity: 0.9;
+    
+    @media (max-width: 768px) {
+      font-size: 1.2rem;
+    }
+    
+    @media (max-width: 480px) {
+      font-size: 1rem;
+    }
   }
 }
 
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.3s ease;
+// 添加时间显示的动画
+.time-fade-enter-active {
+  transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.fade-enter-from,
-.fade-leave-to {
+.time-fade-enter-from {
   opacity: 0;
+  transform: translateY(20px);
+}
+
+.time-fade-leave-active {
+  transition: all 0.3s ease;
+}
+
+.time-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-20px);
+}
+
+// 添加暗色模式支持
+@media (prefers-color-scheme: dark) {
+  .time-display {
+    color: #ffffff;
+    text-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  }
 }
 </style> 

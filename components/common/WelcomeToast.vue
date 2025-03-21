@@ -1,152 +1,139 @@
-// 欢迎提示组件
 <template>
-  <div class="welcome-toast" v-if="show">
-    <div class="welcome-message">{{ welcomeMessage }}</div>
-    <div class="close-btn" @click="closeToast">×</div>
-  </div>
+  <Transition
+    enter-active-class="animate-slide-down"
+    leave-active-class="animate-slide-up"
+  >
+    <div v-show="show" class="welcome-toast">
+      {{ greeting }}
+    </div>
+  </Transition>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 
 const show = ref(false)
-const welcomeMessage = ref('')
-let dismissTimer = null
+let showTimer = null
+let hideTimer = null
 
-// 根据时间生成欢迎信息
-const generateWelcomeMessage = () => {
+// 根据时间计算问候语
+const greeting = computed(() => {
   const hour = new Date().getHours()
-  let timeMessage = ''
   
-  if (hour >= 5 && hour < 12) {
-    timeMessage = '早上好'
-  } else if (hour >= 12 && hour < 14) {
-    timeMessage = '中午好'
-  } else if (hour >= 14 && hour < 18) {
-    timeMessage = '下午好'
-  } else if (hour >= 18 && hour < 22) {
-    timeMessage = '晚上好'
+  if (hour >= 0 && hour < 5) {
+    return '夜深了，注意休息！'
+  } else if (hour >= 5 && hour < 7) {
+    return '清晨好！'
+  } else if (hour >= 7 && hour < 11) {
+    return '上午好！'
+  } else if (hour >= 11 && hour < 13) {
+    return '中午好！'
+  } else if (hour >= 13 && hour < 17) {
+    return '下午好！'
+  } else if (hour >= 17 && hour < 19) {
+    return '傍晚好！'
+  } else if (hour >= 19 && hour < 23) {
+    return '晚上好！'
   } else {
-    timeMessage = '夜深了'
+    return '夜深了，注意休息！'
   }
-  
-  welcomeMessage.value = `${timeMessage}`
-}
-
-// 关闭提示
-const closeToast = () => {
-  show.value = false
-  clearTimeout(dismissTimer)
-  
-  // 保存到本地存储，一天内不再显示
-  const now = new Date().getTime()
-  localStorage.setItem('welcomeToastDismissed', now.toString())
-}
-
-onMounted(() => {
-  // 检查是否在24小时内已经显示过
-  const lastDismissed = localStorage.getItem('welcomeToastDismissed')
-  const now = new Date().getTime()
-  
-  if (lastDismissed && now - parseInt(lastDismissed) < 24 * 60 * 60 * 1000) {
-    return
-  }
-  
-  generateWelcomeMessage()
-  
-  // 延迟显示欢迎信息
-  setTimeout(() => {
-    show.value = true
-    
-    // 5秒后自动关闭
-    dismissTimer = setTimeout(() => {
-      show.value = false
-    }, 5000)
-  }, 1500)
 })
 
+onMounted(() => {
+  // 如果页面已经加载完成，直接显示
+  if (document.readyState === 'complete') {
+    startShowProcess()
+  } else {
+    // 否则等待页面加载完成
+    window.addEventListener('load', startShowProcess)
+  }
+})
+
+const startShowProcess = () => {
+  showTimer = setTimeout(() => {
+    show.value = true
+    hideTimer = setTimeout(() => {
+      show.value = false
+    }, 1500)
+  }, 500)
+}
+
 onUnmounted(() => {
-  if (dismissTimer) clearTimeout(dismissTimer)
+  if (showTimer) clearTimeout(showTimer)
+  if (hideTimer) clearTimeout(hideTimer)
+  window.removeEventListener('load', startShowProcess)
 })
 </script>
 
 <style lang="scss" scoped>
-$bg-color: rgba(255, 255, 255, 0.7);
-$text-color: rgba(0, 0, 0, 0.8);
-$border-radius: 12px;
-$shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+// 变量定义
+$toast-bg-color: #ffffff;
+$toast-text-color: #000000;
+$toast-border-radius: 999px;
+$toast-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+$toast-animation-duration: 0.4s;
 
+// 关键帧动画
+@keyframes slideDown {
+  from {
+    transform: translate(-50%, -150%);
+    opacity: 0;
+  }
+  to {
+    transform: translate(-50%, 0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translate(-50%, 0);
+    opacity: 1;
+  }
+  to {
+    transform: translate(-50%, -150%);
+    opacity: 0;
+  }
+}
+
+// 样式
 .welcome-toast {
   position: fixed;
   top: 2rem;
   left: 50%;
   transform: translateX(-50%);
-  background: $bg-color;
-  padding: 0.8rem 1.2rem;
-  border-radius: $border-radius;
-  box-shadow: $shadow;
+  background-color: $toast-bg-color;
+  padding: 0.5rem 1.6rem;
+  border-radius: $toast-border-radius;
+  font-size: 0.95rem;
+  color: $toast-text-color;
+  box-shadow: $toast-shadow;
   z-index: 1000;
-  display: flex;
-  align-items: center;
-  backdrop-filter: blur(8px);
-  animation: fadeInDown 0.5s ease forwards;
-  max-width: 90vw;
+  font-family: "Microsoft YaHei", -apple-system, sans-serif;
+  font-weight: 400;
+  letter-spacing: 0.5px;
   
-  @media (max-width: 480px) {
-    top: 1rem;
-    padding: 0.6rem 1rem;
-  }
-  
-  .welcome-message {
-    font-size: 1rem;
-    color: $text-color;
-    margin-right: 1rem;
-    
-    @media (max-width: 480px) {
-      font-size: 0.9rem;
-    }
-  }
-  
-  .close-btn {
-    width: 1.5rem;
-    height: 1.5rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    color: $text-color;
-    opacity: 0.5;
-    transition: opacity 0.2s ease;
-    
-    &:hover {
-      opacity: 0.8;
-    }
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: $toast-border-radius;
+    padding: 1.5px;
+    background: linear-gradient(to bottom right, rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.03));
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
   }
 }
 
-@keyframes fadeInDown {
-  from {
-    opacity: 0;
-    transform: translate(-50%, -20px);
-  }
-  to {
-    opacity: 1;
-    transform: translate(-50%, 0);
-  }
+// 动画类
+.animate-slide-down {
+  animation: slideDown $toast-animation-duration ease-out forwards;
 }
 
-// 暗色模式支持
-@media (prefers-color-scheme: dark) {
-  .welcome-toast {
-    background: rgba(30, 30, 30, 0.8);
-    
-    .welcome-message {
-      color: rgba(255, 255, 255, 0.9);
-    }
-    
-    .close-btn {
-      color: rgba(255, 255, 255, 0.9);
-    }
-  }
+.animate-slide-up {
+  animation: slideUp $toast-animation-duration ease-in forwards;
 }
 </style> 

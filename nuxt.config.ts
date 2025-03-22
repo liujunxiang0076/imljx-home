@@ -14,9 +14,12 @@ export default defineNuxtConfig({
     '@element-plus/nuxt'
   ],
   
-  // 构建配置
+  // 修改构建策略，使用CSR模式
+  ssr: false,
+  
+  // 解决element-plus构建错误
   build: {
-    transpile: ['element-plus/es']
+    transpile: ['element-plus'],
   },
   
   // 运行时配置
@@ -28,9 +31,6 @@ export default defineNuxtConfig({
       }
     }
   },
-
-  // SSR 配置
-  ssr: true,
 
   // 构建优化
   experimental: {
@@ -44,8 +44,8 @@ export default defineNuxtConfig({
 
   // Nitro 配置
   nitro: {
-    prerender: {
-      failOnError: false
+    externals: {
+      inline: ['element-plus']
     }
   },
 
@@ -73,5 +73,15 @@ export default defineNuxtConfig({
       },
       '~/components'
     ]
-  }
+  },
+
+  // 修改构建策略，使用CSR模式
+  vite: {
+    define: {
+      'process.env.ELEMENT_PLUS_VERSION': JSON.stringify(require('element-plus/package.json').version),
+    },
+    build: {
+      chunkSizeWarningLimit: 1000,
+    }
+  },
 })

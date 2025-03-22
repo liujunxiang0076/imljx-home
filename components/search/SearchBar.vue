@@ -162,6 +162,7 @@
 
 <script setup>
 import { Listbox, ListboxButton, ListboxOptions, ListboxOption } from '@headlessui/vue'
+import { ref, onMounted, computed, watch, nextTick, onUnmounted } from 'vue'
 import { 
   ChevronDownIcon, 
   CheckIcon, 
@@ -344,6 +345,8 @@ const fetchSuggestions = async () => {
     if (data.success && Array.isArray(data.suggestions)) {
       suggestions.value = data.suggestions
       showSuggestions.value = data.suggestions.length > 0
+      // 确保宽度更新
+      updateSuggestionsWidth()
     } else {
       console.warn('获取搜索建议返回格式错误:', data)
       suggestions.value = []
@@ -497,11 +500,15 @@ onMounted(() => {
   
   // 监听键盘事件
   window.addEventListener('keydown', handleKeyDown)
+  
+  // 监听窗口大小变化，更新搜索建议宽度
+  window.addEventListener('resize', updateSuggestionsWidth)
 })
 
 // 组件卸载时移除事件监听
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeyDown)
+  window.removeEventListener('resize', updateSuggestionsWidth)
   if (debounceTimer.value) clearTimeout(debounceTimer.value)
 })
 
@@ -517,6 +524,25 @@ const closeSuggestions = () => {
   showSuggestions.value = false
   highlightIndex.value = -1
 }
+
+// 添加新的js逻辑以在更新搜索建议后动态调整宽度
+const updateSuggestionsWidth = () => {
+  // 在下一个DOM更新周期执行宽度更新
+  nextTick(() => {
+    if (searchBarRef.value && isExpanded.value) {
+      const suggestions = document.querySelector('.search-suggestions');
+      if (suggestions) {
+        // 设置宽度与搜索栏一致
+        suggestions.style.width = `${searchBarRef.value.offsetWidth}px`;
+      }
+    }
+  });
+};
+
+// 当搜索栏展开状态或搜索建议可见性改变时更新宽度
+watch([isExpanded, showSuggestions], () => {
+  updateSuggestionsWidth();
+});
 </script>
 
 <style lang="scss" scoped>
@@ -826,8 +852,9 @@ $transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
 .search-suggestions {
   position: absolute;
   top: calc(100% + 8px);
-  left: 0;
-  right: 0;
+  width: $search-bar-expanded-width; // 固定宽度与搜索栏展开宽度一致
+  left: 50%;
+  transform: translateX(-50%);
   background-color: rgba(255, 255, 255, 0.98);
   border-radius: 1rem;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
@@ -1031,12 +1058,9 @@ $transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   .search-suggestions {
+    width: 100%; // 移动端使用100%宽度
+    max-width: 100%;
     border-radius: 0.8rem;
-    
-    li {
-      padding: 0.7rem 0.8rem;
-      font-size: 0.95rem;
-    }
   }
 }
 
@@ -1069,6 +1093,8 @@ $transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   .search-suggestions {
+    max-width: 100%;
+    width: 100%;
     border-radius: 0.7rem;
     
     li {

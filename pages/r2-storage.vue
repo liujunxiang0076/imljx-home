@@ -1,10 +1,10 @@
 <template>
   <div class="r2-container">
-    <h1>Cloudflare R2 对象存储测试</h1>
+    <h1>对象存储管理</h1>
     
     <!-- 配置表单 -->
     <div class="config-section">
-      <h2>R2 配置</h2>
+      <h2>存储配置</h2>
       <div class="config-actions">
         <el-button type="primary" @click="showConfig = true" size="small">
           <el-icon><setting /></el-icon> 设置配置
@@ -29,7 +29,7 @@
       
       <el-dialog
         v-model="showConfig"
-        title="Cloudflare R2 配置"
+        title="对象存储配置"
         width="90%"
         :max-width="500"
         top="5vh"
@@ -48,7 +48,7 @@
             <el-input v-model="config.bucketName" :placeholder="r2BucketName || '请输入存储桶名称'" />
           </el-form-item>
           <el-form-item label="终端节点">
-            <el-input v-model="config.endpoint" :placeholder="r2Endpoint || 'https://<账户ID>.r2.cloudflarestorage.com'" />
+            <el-input v-model="config.endpoint" :placeholder="r2Endpoint || '请输入终端节点地址 (例如: https://xxx.r2.cloudflarestorage.com)'" />
           </el-form-item>
         </el-form>
         <template #footer>
@@ -62,7 +62,7 @@
 
       <div class="connection-status" v-if="connectionTested">
         <el-alert
-          :title="connectionSuccess ? 'R2连接成功' : 'R2连接失败'"
+          :title="connectionSuccess ? '连接成功' : '连接失败'"
           :type="connectionSuccess ? 'success' : 'error'"
           :description="connectionMessage"
           show-icon
@@ -77,8 +77,8 @@
             <div class="tips-content">
               <h4>ECONNRESET (连接重置)错误解决方案：</h4>
               <ol>
-                <li>检查终端节点URL格式是否正确，应为 <code>https://&lt;账户ID&gt;.r2.cloudflarestorage.com</code>，不要添加存储桶名称或其他路径</li>
-                <li>确认您的网络环境允许HTTPS连接到Cloudflare服务器，无代理或防火墙限制</li>
+                <li>检查终端节点URL格式是否正确，应为 <code>https://&lt;账户ID&gt;.r2.cloudflarestorage.com</code> 或其他对象存储厂商提供的地址</li>
+                <li>确认您的网络环境允许HTTPS连接到存储服务器，无代理或防火墙限制</li>
                 <li>如果使用公司或学校网络，可能存在网络策略限制，尝试使用其他网络连接</li>
                 <li>如果使用VPN，尝试禁用后重新连接</li>
                 <li>尝试清除浏览器缓存后重新测试</li>
@@ -98,7 +98,7 @@
     
     <!-- 上传文件表单 -->
     <div class="upload-section">
-      <h2>上传文件</h2>
+      <h2>文件上传</h2>
       <div v-if="hasR2Config">
         <el-upload
           class="upload"
@@ -113,15 +113,15 @@
             拖拽文件到此处或 <em>点击上传</em>
           </div>
           <template #tip>
-            <div class="el-upload__tip">支持任意类型文件上传</div>
+            <div class="el-upload__tip">支持任意类型文件上传到当前文件夹</div>
           </template>
         </el-upload>
       </div>
       <div v-else class="no-config-tip">
         <el-alert
-          title="未配置R2存储"
+          title="未配置存储"
           type="warning"
-          description="请先完成R2存储配置后再上传文件"
+          description="请先完成对象存储配置后再上传文件"
           show-icon
           :closable="false"
         >
@@ -304,6 +304,22 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { UploadFilled, Setting, Refresh, InfoFilled, Folder, Document, Warning } from '@element-plus/icons-vue';
 import type { UploadRequestOptions } from 'element-plus';
 import dayjs from 'dayjs';
+import { useHead } from 'nuxt/app';
+
+// 设置页面标题和图标
+useHead({
+  title: '对象存储管理',
+  meta: [
+    { name: 'description', content: '对象存储文件管理界面' }
+  ],
+  link: [
+    {
+      rel: 'icon',
+      type: 'image/x-icon',
+      href: '/favicon.ico'
+    }
+  ]
+});
 
 // 状态管理
 const files = ref<any[]>([]);

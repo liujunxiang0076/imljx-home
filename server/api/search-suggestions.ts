@@ -21,7 +21,7 @@ export default defineEventHandler(async (event) => {
     }
 
     // 根据不同搜索引擎获取建议
-    let suggestions = []
+    let suggestions: string[] = []
     
     if (engine === 'baidu') {
       suggestions = await getBaiduSuggestions(query as string)

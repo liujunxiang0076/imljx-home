@@ -99,22 +99,39 @@
     <!-- 上传文件表单 -->
     <div class="upload-section">
       <h2>上传文件</h2>
-      <el-upload
-        class="upload"
-        drag
-        :http-request="uploadFile"
-        :show-file-list="false"
-        :limit="1"
-        accept="*/*"
-      >
-        <el-icon class="el-icon--upload"><upload-filled /></el-icon>
-        <div class="el-upload__text">
-          拖拽文件到此处或 <em>点击上传</em>
-        </div>
-        <template #tip>
-          <div class="el-upload__tip">支持任意类型文件上传</div>
-        </template>
-      </el-upload>
+      <div v-if="hasR2Config">
+        <el-upload
+          class="upload"
+          drag
+          :http-request="uploadFile"
+          :show-file-list="false"
+          :limit="1"
+          accept="*/*"
+        >
+          <el-icon class="el-icon--upload"><upload-filled /></el-icon>
+          <div class="el-upload__text">
+            拖拽文件到此处或 <em>点击上传</em>
+          </div>
+          <template #tip>
+            <div class="el-upload__tip">支持任意类型文件上传</div>
+          </template>
+        </el-upload>
+      </div>
+      <div v-else class="no-config-tip">
+        <el-alert
+          title="未配置R2存储"
+          type="warning"
+          description="请先完成R2存储配置后再上传文件"
+          show-icon
+          :closable="false"
+        >
+          <template #default>
+            <el-button type="primary" size="small" @click="showConfig = true" style="margin-top: 10px;">
+              <el-icon><setting /></el-icon> 立即配置
+            </el-button>
+          </template>
+        </el-alert>
+      </div>
       <div v-if="uploading" class="upload-progress">
         <el-progress :percentage="uploadProgress" />
         <p class="upload-status">{{ uploadStatusText }}</p>
@@ -313,6 +330,11 @@ const pageSize = ref(10);
 
 // 响应式设计 - 屏幕宽度监测
 const screenWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 1200);
+
+// 检查是否存在R2配置
+const hasR2Config = computed(() => {
+  return !!(r2AccessKeyId.value && r2SecretKey.value && r2BucketName.value && r2Endpoint.value);
+});
 
 // 处理文件列表，添加文件和文件夹区分
 const processFileList = (objects: any[]): any[] => {
@@ -1344,6 +1366,17 @@ h2 {
     display: flex;
     justify-content: flex-end;
     padding: 10px 0 0 0;
+  }
+}
+
+.no-config-tip {
+  display: flex;
+  justify-content: center;
+  padding: 20px 0;
+  
+  :deep(.el-alert) {
+    max-width: 450px;
+    width: 100%;
   }
 }
 </style> 

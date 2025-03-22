@@ -34,6 +34,8 @@
         :max-width="500"
         top="5vh"
         :fullscreen="screenWidth < 600"
+        align-center
+        destroy-on-close
       >
         <el-form :model="config" label-width="120px" label-position="top">
           <el-form-item label="Access Key ID">
@@ -122,65 +124,167 @@
     <!-- 文件列表 -->
     <div class="files-section">
       <div class="files-header">
-        <h2>文件列表</h2>
-        <el-button type="primary" @click="refreshFileList" :loading="loading">刷新</el-button>
+        <div class="path-navigation">
+          <h2>文件列表</h2>
+          <div class="breadcrumb">
+            <el-breadcrumb separator="/">
+              <el-breadcrumb-item @click="navigateToRoot">根目录</el-breadcrumb-item>
+              <el-breadcrumb-item 
+                v-for="(folder, index) in currentPathParts" 
+                :key="index"
+                @click="navigateToPath(index)"
+              >
+                {{ folder }}
+              </el-breadcrumb-item>
+            </el-breadcrumb>
+          </div>
+        </div>
+        <div class="files-actions">
+          <el-button type="primary" @click="refreshFileList" :loading="loading" size="small">
+            <el-icon><refresh /></el-icon> 刷新
+          </el-button>
+          
+          <el-select v-model="pageSize" placeholder="每页显示" size="small" style="width: 110px;">
+            <el-option :value="10" label="10条/页" />
+            <el-option :value="20" label="20条/页" />
+            <el-option :value="50" label="50条/页" />
+            <el-option :value="100" label="100条/页" />
+          </el-select>
+        </div>
       </div>
       
       <el-table 
         v-loading="loading" 
-        :data="files" 
+        :data="paginatedFiles" 
         style="width: 100%" 
         empty-text="没有文件"
         :default-sort="{prop: 'LastModified', order: 'descending'}"
         class="file-table"
-        :span-method="screenWidth < 768 ? tableSpanMethod : undefined"
+        :max-height="screenWidth < 768 ? '50vh' : '60vh'"
+        size="small"
       >
-        <el-table-column prop="Key" label="文件名">
+        <el-table-column prop="Type" label="" width="50">
           <template #default="scope">
-            <el-tooltip effect="dark" :content="scope.row.Key" placement="top">
-              <span class="file-name">{{ scope.row.Key }}</span>
+            <el-icon v-if="scope.row.Type === 'folder'"><folder /></el-icon>
+            <el-icon v-else><document /></el-icon>
+          </template>
+        </el-table-column>
+        <el-table-column prop="Key" label="文件名" min-width="180">
+          <template #default="scope">
+            <el-tooltip effect="dark" :content="getFileName(scope.row.Key)" placement="top">
+              <span 
+                class="file-name" 
+                :class="{ 'folder-name': scope.row.Type === 'folder' }" 
+                @click="scope.row.Type === 'folder' ? openFolder(scope.row.Key) : null"
+              >
+                {{ getFileName(scope.row.Key) }}
+              </span>
             </el-tooltip>
+          </template>
+        </el-table-column>
+        <el-table-column prop="FileType" label="格式" min-width="80" :visible="screenWidth >= 480">
+          <template #default="scope">
+            <span v-if="scope.row.Type === 'folder'">文件夹</span>
+            <span v-else>{{ getFileExtension(scope.row.Key) }}</span>
           </template>
         </el-table-column>
         <el-table-column prop="Size" label="大小" min-width="100" :visible="screenWidth >= 576">
           <template #default="scope">
-            {{ formatFileSize(scope.row.Size) }}
+            <span v-if="scope.row.Type === 'folder'">-</span>
+            <span v-else>{{ formatFileSize(scope.row.Size) }}</span>
           </template>
         </el-table-column>
         <el-table-column prop="LastModified" label="最后修改时间" min-width="180" sortable :visible="screenWidth >= 768">
           <template #default="scope">
-            {{ formatDate(scope.row.LastModified) }}
+            <span v-if="scope.row.Type === 'folder'">-</span>
+            <span v-else>{{ formatDate(scope.row.LastModified) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" fixed="right" min-width="120">
+        <el-table-column label="操作" fixed="right" min-width="120" width="160">
           <template #default="scope">
             <div class="action-buttons">
-              <el-button size="small" type="primary" @click="downloadFile(scope.row.Key)">下载</el-button>
-              <el-button size="small" type="danger" @click="confirmDelete(scope.row.Key)">删除</el-button>
+              <el-button v-if="scope.row.Type === 'folder'" size="small" type="primary" @click="openFolder(scope.row.Key)">打开</el-button>
+              <el-button v-else-if="isImage(scope.row.Key)" size="small" type="success" @click="previewImage(scope.row.Key)">预览</el-button>
+              <el-button v-else size="small" type="primary" @click="downloadFile(scope.row.Key)">下载</el-button>
+              <el-button size="small" type="danger" @click="confirmDelete(scope.row.Key, scope.row.Type)">删除</el-button>
             </div>
           </template>
         </el-table-column>
       </el-table>
+
+      <!-- 分页控件 -->
+      <div class="pagination-container">
+        <el-pagination
+          v-model:current-page="currentPage"
+          v-model:page-size="pageSize"
+          :page-sizes="[10, 20, 50, 100]"
+          layout="total, sizes, prev, pager, next"
+          :total="files.length"
+          @size-change="handleSizeChange"
+          @current-change="handleCurrentChange"
+          background
+        />
+      </div>
       
       <!-- 移动端文件信息补充显示 -->
-      <div v-if="screenWidth < 768 && files.length > 0" class="mobile-file-info">
+      <div v-if="screenWidth < 768 && paginatedFiles.length > 0" class="mobile-file-info">
         <el-collapse accordion>
-          <el-collapse-item v-for="(file, index) in files" :key="file.Key" :title="file.Key" :name="index">
+          <el-collapse-item v-for="(file, index) in paginatedFiles" :key="file.Key" :title="getFileName(file.Key)" :name="index">
             <div class="mobile-file-details">
-              <p><strong>大小:</strong> {{ formatFileSize(file.Size) }}</p>
-              <p><strong>上传时间:</strong> {{ formatDate(file.LastModified) }}</p>
+              <p v-if="file.Type === 'folder'"><strong>类型:</strong> 文件夹</p>
+              <template v-else>
+                <p><strong>格式:</strong> {{ getFileExtension(file.Key) }}</p>
+                <p><strong>大小:</strong> {{ formatFileSize(file.Size) }}</p>
+                <p><strong>上传时间:</strong> {{ formatDate(file.LastModified) }}</p>
+              </template>
+              <div class="mobile-actions">
+                <el-button v-if="file.Type === 'folder'" size="small" type="primary" @click="openFolder(file.Key)">打开</el-button>
+                <el-button v-else-if="isImage(file.Key)" size="small" type="success" @click="previewImage(file.Key)">预览</el-button>
+                <el-button v-else size="small" type="primary" @click="downloadFile(file.Key)">下载</el-button>
+                <el-button size="small" type="danger" @click="confirmDelete(file.Key, file.Type)">删除</el-button>
+              </div>
             </div>
           </el-collapse-item>
         </el-collapse>
       </div>
     </div>
+
+    <!-- 图片预览对话框 -->
+    <el-dialog
+      v-model="showImagePreview"
+      :title="previewFileName"
+      width="90%"
+      :fullscreen="screenWidth < 768"
+      center
+      append-to-body
+      destroy-on-close
+      class="image-preview-dialog"
+    >
+      <div v-loading="imageLoading" class="preview-container">
+        <img 
+          v-if="previewImageUrl && !imageLoadError" 
+          :src="previewImageUrl" 
+          alt="预览图片"
+          @load="imageLoading = false"
+          @error="handleImageError"
+          class="preview-image"
+        />
+        <div v-if="imageLoadError" class="image-error">
+          <el-icon><warning /></el-icon>
+          <p>图片加载失败</p>
+        </div>
+      </div>
+      <div class="preview-actions">
+        <el-button type="primary" @click="downloadFile(currentPreviewFile)">下载原图</el-button>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, computed, onBeforeUnmount } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { UploadFilled, Setting, Refresh, InfoFilled } from '@element-plus/icons-vue';
+import { UploadFilled, Setting, Refresh, InfoFilled, Folder, Document, Warning } from '@element-plus/icons-vue';
 import type { UploadRequestOptions } from 'element-plus';
 import dayjs from 'dayjs';
 
@@ -197,8 +301,86 @@ const connectionMessage = ref('');
 const configSource = ref<'local' | 'env' | 'none'>('none');
 const showTips = ref(true); // 默认显示排查建议
 
+// 文件夹导航相关
+const currentPath = ref('');
+const currentPathParts = computed(() => {
+  return currentPath.value ? currentPath.value.split('/').filter(Boolean) : [];
+});
+
+// 分页相关
+const currentPage = ref(1);
+const pageSize = ref(10);
+
 // 响应式设计 - 屏幕宽度监测
 const screenWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 1200);
+
+// 处理文件列表，添加文件和文件夹区分
+const processFileList = (objects: any[]): any[] => {
+  const result: any[] = [];
+  const prefixes = new Set<string>();
+  
+  // 处理当前路径
+  const prefix = currentPath.value ? `${currentPath.value}/` : '';
+  
+  // 首先识别当前目录下的所有文件和子文件夹
+  objects.forEach(obj => {
+    // 如果不是以当前路径开头，则跳过
+    if (!obj.Key.startsWith(prefix)) return;
+    
+    // 去掉前缀
+    const relativePath = obj.Key.substring(prefix.length);
+    
+    // 如果包含斜杠，说明是子目录中的文件，提取第一级子目录
+    if (relativePath.includes('/')) {
+      const folderName = relativePath.split('/')[0];
+      const folderPath = prefix + folderName;
+      
+      // 添加到前缀集合中
+      prefixes.add(folderPath);
+    } else if (relativePath) {
+      // 这是当前目录的文件，直接添加
+      result.push({
+        ...obj,
+        Type: 'file'
+      });
+    }
+  });
+  
+  // 添加文件夹
+  prefixes.forEach(folderPath => {
+    result.push({
+      Key: folderPath,
+      Type: 'folder',
+      Size: 0,
+      LastModified: null
+    });
+  });
+  
+  return result;
+};
+
+// 分页后的文件列表
+const paginatedFiles = computed(() => {
+  const processedFiles = processFileList(files.value);
+  const startIndex = (currentPage.value - 1) * pageSize.value;
+  const endIndex = startIndex + pageSize.value;
+  return processedFiles.slice(startIndex, endIndex);
+});
+
+// 处理分页大小变化
+const handleSizeChange = (newSize: number) => {
+  pageSize.value = newSize;
+  // 重新计算总页数，如果当前页超出范围，重置为第一页
+  const totalPages = Math.ceil(processFileList(files.value).length / pageSize.value);
+  if (currentPage.value > totalPages) {
+    currentPage.value = 1;
+  }
+};
+
+// 处理当前页变化
+const handleCurrentChange = (newPage: number) => {
+  currentPage.value = newPage;
+};
 
 const updateScreenWidth = () => {
   screenWidth.value = window.innerWidth;
@@ -218,6 +400,14 @@ const config = ref({
   endpoint: ''
 });
 
+// 图片预览相关
+const showImagePreview = ref(false);
+const previewImageUrl = ref('');
+const previewFileName = ref('');
+const currentPreviewFile = ref('');
+const imageLoading = ref(false);
+const imageLoadError = ref(false);
+
 // 页面加载时获取文件列表并尝试加载本地存储的配置
 onMounted(() => {
   loadStoredConfig();
@@ -230,6 +420,15 @@ onMounted(() => {
   
   // 添加屏幕宽度监听
   window.addEventListener('resize', updateScreenWidth);
+  
+  // 确保页面可以滚动
+  document.body.style.overflow = 'auto';
+  document.body.style.height = 'auto';
+  document.documentElement.style.overflow = 'auto';
+  document.documentElement.style.height = 'auto';
+  
+  // 确保页面初始化后滚动到顶部
+  window.scrollTo(0, 0);
 });
 
 onBeforeUnmount(() => {
@@ -413,7 +612,8 @@ const refreshFileList = async () => {
         accessKeyId: r2AccessKeyId.value,
         secretKey: r2SecretKey.value,
         bucketName: r2BucketName.value,
-        endpoint: r2Endpoint.value
+        endpoint: r2Endpoint.value,
+        prefix: currentPath.value
       }),
     });
     
@@ -421,6 +621,8 @@ const refreshFileList = async () => {
     
     if (data.success) {
       files.value = data.objects || [];
+      // 重置到第一页
+      currentPage.value = 1;
     } else {
       // 显示诊断信息
       let errorMessage = data.error || '获取文件列表失败';
@@ -457,6 +659,9 @@ const uploadFile = async (options: UploadRequestOptions) => {
   uploadProgress.value = 0;
   uploadStatusText.value = '准备上传...';
   
+  // 构建文件路径（当前目录 + 文件名）
+  const filePath = currentPath.value ? `${currentPath.value}/${file.name}` : file.name;
+  
   try {
     // 1. 获取预签名URL
     uploadStatusText.value = '获取上传链接...';
@@ -466,7 +671,7 @@ const uploadFile = async (options: UploadRequestOptions) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        fileName: file.name,
+        fileName: filePath,
         contentType: file.type || 'application/octet-stream',
         accessKeyId: r2AccessKeyId.value,
         secretKey: r2SecretKey.value,
@@ -565,9 +770,13 @@ const downloadFile = async (fileName: string) => {
 };
 
 // 确认删除文件
-const confirmDelete = (fileName: string) => {
+const confirmDelete = (path: string, type: string) => {
+  const isFolder = type === 'folder';
+  const typeName = isFolder ? '文件夹' : '文件';
+  const fileName = getFileName(path);
+  
   ElMessageBox.confirm(
-    `确定要删除文件 "${fileName}" 吗?`,
+    `确定要删除${typeName} "${fileName}" 吗?` + (isFolder ? '文件夹内的所有文件也将被删除！' : ''),
     '删除确认',
     {
       confirmButtonText: '确定',
@@ -575,22 +784,25 @@ const confirmDelete = (fileName: string) => {
       type: 'warning',
     }
   ).then(() => {
-    deleteFile(fileName);
+    deleteFile(path, type);
   }).catch(() => {
     // 用户取消操作
   });
 };
 
-// 删除文件
-const deleteFile = async (fileName: string) => {
+// 删除文件/文件夹
+const deleteFile = async (path: string, type: string) => {
   try {
-    const response = await fetch('/api/r2?action=delete', {
+    const isFolder = type === 'folder';
+    const action = isFolder ? 'deleteFolder' : 'delete';
+    
+    const response = await fetch(`/api/r2?action=${action}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ 
-        fileName,
+        fileName: path,
         accessKeyId: r2AccessKeyId.value,
         secretKey: r2SecretKey.value,
         bucketName: r2BucketName.value,
@@ -601,13 +813,13 @@ const deleteFile = async (fileName: string) => {
     const data = await response.json();
     
     if (data.success) {
-      ElMessage.success('文件删除成功');
+      ElMessage.success(`${isFolder ? '文件夹' : '文件'}删除成功`);
       await refreshFileList();
     } else {
-      ElMessage.error(data.error || '删除文件失败');
+      ElMessage.error(data.error || `删除${isFolder ? '文件夹' : '文件'}失败`);
     }
   } catch (error: any) {
-    ElMessage.error(error.message || '删除文件失败');
+    ElMessage.error(error.message || '删除失败');
   }
 };
 
@@ -638,90 +850,183 @@ const resetToEnvConfig = async () => {
   ElMessage.success('已重置为环境变量中的配置');
 };
 
-// 表格在移动设备上的特殊处理
-const tableSpanMethod = (row: any, column: any) => {
-  if (column.property === 'Key') {
-    return {
-      rowspan: 1,
-      colspan: 1
-    };
-  } else if (column.property === 'Size') {
-    return {
-      rowspan: 1,
-      colspan: 1
-    };
-  } else if (column.property === 'LastModified') {
-    return {
-      rowspan: 1,
-      colspan: 1
-    };
-  } else if (column.property === '操作') {
-    return {
-      rowspan: 1,
-      colspan: 1
-    };
+// 获取文件扩展名
+const getFileExtension = (fileName: string) => {
+  if (!fileName) return '';
+  const parts = fileName.split('.');
+  if (parts.length === 1) return '无扩展名';
+  
+  const extension = parts[parts.length - 1].toUpperCase();
+  return extension;
+};
+
+// 获取文件名
+const getFileName = (key: string) => {
+  if (!key) return '';
+  const parts = key.split('/');
+  return parts[parts.length - 1] || key;
+};
+
+// 导航到根目录
+const navigateToRoot = () => {
+  currentPath.value = '';
+  refreshFileList();
+};
+
+// 导航到指定路径层级
+const navigateToPath = (index: number) => {
+  if (index < 0) {
+    navigateToRoot();
+    return;
   }
-  return {
-    rowspan: 0,
-    colspan: 0
-  };
+  
+  const parts = currentPathParts.value;
+  const newPath = parts.slice(0, index + 1).join('/');
+  currentPath.value = newPath;
+  refreshFileList();
+};
+
+// 打开文件夹
+const openFolder = (folderPath: string) => {
+  currentPath.value = folderPath;
+  refreshFileList();
+};
+
+// 判断文件是否为图片
+const isImage = (fileName: string) => {
+  if (!fileName) return false;
+  const extension = getFileExtension(fileName).toLowerCase();
+  return ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg'].includes(extension.toLowerCase());
+};
+
+// 预览图片
+const previewImage = async (fileName: string) => {
+  try {
+    imageLoading.value = true;
+    imageLoadError.value = false;
+    showImagePreview.value = true;
+    currentPreviewFile.value = fileName;
+    previewFileName.value = getFileName(fileName);
+    
+    const response = await fetch('/api/r2?action=getDownloadUrl', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ 
+        fileName,
+        accessKeyId: r2AccessKeyId.value,
+        secretKey: r2SecretKey.value,
+        bucketName: r2BucketName.value,
+        endpoint: r2Endpoint.value
+      }),
+    });
+    
+    const data = await response.json();
+    
+    if (data.success && data.downloadUrl) {
+      previewImageUrl.value = data.downloadUrl;
+    } else {
+      imageLoadError.value = true;
+      imageLoading.value = false;
+      ElMessage.error(data.error || '获取图片预览链接失败');
+    }
+  } catch (error: any) {
+    imageLoadError.value = true;
+    imageLoading.value = false;
+    ElMessage.error(error.message || '预览图片失败');
+  }
+};
+
+// 处理图片加载错误
+const handleImageError = () => {
+  imageLoadError.value = true;
+  imageLoading.value = false;
+  ElMessage.error('图片加载失败，可能是格式不兼容或链接已过期');
 };
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
+// 定义变量
+$primary-bg: #fff;
+$border-radius: 8px;
+$box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+$mobile-breakpoint: 768px;
+$small-mobile-breakpoint: 576px;
+$section-margin: 15px;
+$section-padding: 15px;
+
 .r2-container {
   max-width: 1200px;
   margin: 0 auto;
   padding: 20px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
   
-  @media (max-width: 768px) {
+  @media (max-width: $mobile-breakpoint) {
     padding: 15px 10px;
+  }
+  
+  // 减小分区之间的间距
+  & > * + * {
+    margin-top: $section-margin;
   }
 }
 
 h1 {
   text-align: center;
-  margin-bottom: 30px;
+  margin-bottom: 20px; /* 减小标题下方间距 */
   
-  @media (max-width: 768px) {
+  @media (max-width: $mobile-breakpoint) {
     font-size: 24px;
-    margin-bottom: 20px;
+    margin-bottom: 15px;
   }
 }
 
 h2 {
-  margin: 20px 0;
+  margin: 15px 0; /* 减小标题的上下间距 */
   
-  @media (max-width: 768px) {
+  @media (max-width: $mobile-breakpoint) {
     font-size: 20px;
-    margin: 15px 0;
+    margin: 10px 0;
+  }
+}
+
+// 通用区块样式
+%section-style {
+  background-color: $primary-bg;
+  border-radius: $border-radius;
+  padding: $section-padding;
+  margin-bottom: $section-margin;
+  box-shadow: $box-shadow;
+  
+  @media (max-width: $mobile-breakpoint) {
+    padding: 12px;
+    margin-bottom: $section-margin;
   }
 }
 
 .config-section,
-.upload-section, 
+.upload-section,
 .files-section {
-  background-color: #fff;
-  border-radius: 8px;
-  padding: 20px;
-  margin-bottom: 30px;
-  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
-  
-  @media (max-width: 768px) {
-    padding: 15px;
-    margin-bottom: 20px;
-  }
+  @extend %section-style;
+}
+
+.files-section {
+  margin-bottom: 30px; /* 减小底部空间 */
 }
 
 .connection-status {
-  margin-top: 15px;
+  margin-top: 10px; /* 减小状态区域的上边距 */
 }
 
 .upload-progress {
-  margin-top: 20px;
+  margin-top: 15px;
 }
 
 .file-name {
+  cursor: default;
   word-break: break-all;
   display: inline-block;
   max-width: 250px;
@@ -729,7 +1034,17 @@ h2 {
   text-overflow: ellipsis;
   white-space: nowrap;
   
-  @media (max-width: 768px) {
+  &.folder-name {
+    cursor: pointer;
+    color: #409eff;
+    font-weight: bold;
+    
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+  
+  @media (max-width: $mobile-breakpoint) {
     max-width: 120px;
   }
 }
@@ -739,7 +1054,7 @@ h2 {
   justify-content: flex-end;
   gap: 10px;
   
-  @media (max-width: 768px) {
+  @media (max-width: $mobile-breakpoint) {
     flex-direction: column;
   }
 }
@@ -756,35 +1071,40 @@ h2 {
 }
 
 .troubleshooting-tips {
-  margin-top: 15px;
-}
-
-.tips-content {
-  padding: 10px;
-}
-
-.tips-content h4 {
-  margin-bottom: 10px;
-}
-
-.tips-content ol {
-  padding-left: 20px;
+  margin-top: 10px; /* 减小排查建议的上边距 */
+  
+  .tips-content {
+    padding: 8px;
+    
+    h4 {
+      margin-bottom: 8px;
+    }
+    
+    ol {
+      padding-left: 20px;
+    }
+  }
 }
 
 .file-table {
   width: 100%;
   
-  @media (max-width: 768px) {
+  @media (max-width: $mobile-breakpoint) {
     font-size: 14px;
   }
 }
 
 .action-buttons {
   display: flex;
+  flex-wrap: wrap;
   gap: 5px;
   
-  @media (max-width: 768px) {
+  @media (max-width: $small-mobile-breakpoint) {
     flex-direction: column;
+    
+    .el-button {
+      margin-left: 0 !important;
+    }
   }
 }
 
@@ -795,7 +1115,7 @@ h2 {
 }
 
 /* 针对移动设备的优化 */
-@media (max-width: 576px) {
+@media (max-width: $small-mobile-breakpoint) {
   .el-dialog {
     width: 95% !important;
   }
@@ -814,10 +1134,10 @@ h2 {
   
   .el-button {
     padding: 8px 15px;
-  }
-  
-  .el-button + .el-button {
-    margin-left: 0;
+    
+    & + .el-button {
+      margin-left: 0;
+    }
   }
   
   .config-actions {
@@ -829,12 +1149,23 @@ h2 {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 15px;
+  margin-bottom: 10px; /* 减小文件列表头部的下边距 */
   
-  @media (max-width: 768px) {
+  @media (max-width: $mobile-breakpoint) {
     flex-direction: column;
     align-items: flex-start;
     gap: 10px;
+  }
+}
+
+.files-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  
+  @media (max-width: $small-mobile-breakpoint) {
+    width: 100%;
+    justify-content: space-between;
   }
 }
 
@@ -842,13 +1173,177 @@ h2 {
   margin-top: 15px;
   border-top: 1px solid #eee;
   padding-top: 15px;
+  
+  .mobile-file-details {
+    padding: 5px;
+    
+    p {
+      margin: 5px 0;
+    }
+    
+    .mobile-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 10px;
+    }
+  }
 }
 
-.mobile-file-details {
-  padding: 5px;
+.pagination-container {
+  margin-top: 15px; /* 减小分页控件的上边距 */
+  display: flex;
+  justify-content: center;
+  padding-bottom: 20px; /* 减小底部内边距 */
 }
 
-.mobile-file-details p {
-  margin: 5px 0;
+:deep(.el-pagination) {
+  justify-content: center;
+  white-space: normal;
+  flex-wrap: wrap;
+  margin-bottom: 15px; /* 减小分页的底部边距 */
+  
+  @media (max-width: $small-mobile-breakpoint) {
+    .el-pagination__sizes {
+      display: none !important;
+    }
+  }
+}
+
+/* 修复移动端滚动问题 */
+:deep(.el-table__body-wrapper) {
+  overflow-x: auto;
+}
+
+/* 确保整个页面可滚动并减小间距 */
+:deep(html), :deep(body) {
+  height: auto !important;
+  min-height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto !important;
+  overflow-x: hidden;
+  line-height: 1.4; /* 减小默认行高 */
+}
+
+// 深度选择器优化 - 使用正确的语法
+:deep(.el-main) {
+  padding: 10px; /* 减小主内容区域的内边距 */
+}
+
+:deep(.el-card) {
+  margin-bottom: 15px;
+}
+
+:deep(.el-card__body) {
+  padding: 10px; /* 减小卡片内边距 */
+}
+
+:deep(.el-form-item) {
+  margin-bottom: 15px; /* 减小表单项间距 */
+}
+
+:deep(.el-table) {
+  font-size: 13px; /* 稍微减小表格字体大小 */
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+:deep(.el-table .cell) {
+  word-break: break-all;
+}
+  
+@media (max-width: $small-mobile-breakpoint) {
+  :deep(.el-table) {
+    max-height: 50vh;
+    font-size: 12px;
+  }
+}
+
+:deep(.el-upload-dragger) {
+  padding: 15px;
+}
+
+:deep(p), :deep(h3), :deep(h4) {
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+}
+
+.path-navigation {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-bottom: 10px;
+  
+  .breadcrumb {
+    display: flex;
+    align-items: center;
+    font-size: 14px;
+    
+    @media (max-width: $mobile-breakpoint) {
+      font-size: 12px;
+      flex-wrap: wrap;
+    }
+  }
+}
+
+:deep(.el-breadcrumb__item) {
+  cursor: pointer;
+  
+  &:hover {
+    color: #409eff;
+  }
+}
+
+/* 图片预览对话框样式 */
+.image-preview-dialog {
+  :deep(.el-dialog__body) {
+    padding: 10px;
+  }
+  
+  .preview-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 300px;
+    max-height: 70vh;
+    overflow: auto;
+    background-color: #f5f5f5;
+    border-radius: 4px;
+    
+    @media (max-width: $mobile-breakpoint) {
+      min-height: 200px;
+    }
+  }
+
+  .preview-image {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+  }
+
+  .image-error {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 20px;
+    color: #f56c6c;
+
+    .el-icon {
+      font-size: 48px;
+      margin-bottom: 15px;
+    }
+
+    p {
+      margin: 0;
+      font-size: 16px;
+    }
+  }
+
+  .preview-actions {
+    display: flex;
+    justify-content: flex-end;
+    padding: 10px 0 0 0;
+  }
 }
 </style> 

@@ -61,7 +61,10 @@ const getConfig = async (event: any) => {
     accessKeyId: body.accessKeyId || envConfig.accessKeyId,
     secretKey: body.secretKey || envConfig.secretKey,
     bucketName: body.bucketName || envConfig.bucketName,
-    endpoint: body.endpoint || envConfig.endpoint
+    endpoint: body.endpoint || envConfig.endpoint,
+    prefix: body.prefix || '',
+    fileName: body.fileName || '',
+    contentType: body.contentType || ''
   };
 };
 
@@ -157,6 +160,8 @@ export default defineEventHandler(async (event) => {
       
       const command = new ListObjectsV2Command({
         Bucket: config.bucketName,
+        // 如果有前缀，则添加到请求中
+        ...(config.prefix ? { Prefix: config.prefix + '/' } : {})
       });
       
       const response = await s3Client.send(command);
@@ -165,8 +170,6 @@ export default defineEventHandler(async (event) => {
     
     // 获取预签名上传URL
     else if (action === 'getUploadUrl') {
-      const { fileName, contentType } = await readBody(event);
-      
       // 验证配置和参数
       if (!config.accessKeyId || !config.secretKey || !config.endpoint || !config.bucketName) {
         return { 
@@ -175,7 +178,7 @@ export default defineEventHandler(async (event) => {
         };
       }
       
-      if (!fileName) {
+      if (!config.fileName) {
         return { 
           success: false, 
           error: '缺少文件名' 
@@ -191,8 +194,8 @@ export default defineEventHandler(async (event) => {
       
       const command = new PutObjectCommand({
         Bucket: config.bucketName,
-        Key: fileName,
-        ContentType: contentType || 'application/octet-stream'
+        Key: config.fileName,
+        ContentType: config.contentType || 'application/octet-stream'
       });
       
       const signedUrl = await getSignedUrl(s3Client, command, { expiresIn: 3600 });
@@ -200,14 +203,12 @@ export default defineEventHandler(async (event) => {
       return {
         success: true,
         uploadUrl: signedUrl,
-        fileName: fileName
+        fileName: config.fileName
       };
     }
     
     // 获取预签名下载URL
     else if (action === 'getDownloadUrl') {
-      const { fileName } = await readBody(event);
-      
       // 验证配置和参数
       if (!config.accessKeyId || !config.secretKey || !config.endpoint || !config.bucketName) {
         return { 
@@ -216,7 +217,7 @@ export default defineEventHandler(async (event) => {
         };
       }
       
-      if (!fileName) {
+      if (!config.fileName) {
         return { 
           success: false, 
           error: '缺少文件名' 
@@ -232,7 +233,9 @@ export default defineEventHandler(async (event) => {
       
       const command = new GetObjectCommand({
         Bucket: config.bucketName,
-        Key: fileName
+        Key: config.fileName,
+        // 添加Content-Disposition以确保正确的文件名
+        ResponseContentDisposition: `attachment; filename="${encodeURIComponent(config.fileName.split('/').pop() || config.fileName)}"`
       });
       
       const signedUrl = await getSignedUrl(s3Client, command, { expiresIn: 3600 });
@@ -240,14 +243,12 @@ export default defineEventHandler(async (event) => {
       return {
         success: true,
         downloadUrl: signedUrl,
-        fileName: fileName
+        fileName: config.fileName
       };
     }
     
     // 删除对象
     else if (action === 'delete') {
-      const { fileName } = await readBody(event);
-      
       // 验证配置和参数
       if (!config.accessKeyId || !config.secretKey || !config.endpoint || !config.bucketName) {
         return { 
@@ -256,7 +257,7 @@ export default defineEventHandler(async (event) => {
         };
       }
       
-      if (!fileName) {
+      if (!config.fileName) {
         return { 
           success: false, 
           error: '缺少文件名' 
@@ -272,14 +273,73 @@ export default defineEventHandler(async (event) => {
       
       const command = new DeleteObjectCommand({
         Bucket: config.bucketName,
-        Key: fileName
+        Key: config.fileName
       });
       
       await s3Client.send(command);
       
       return {
         success: true,
-        message: `文件 ${fileName} 已成功删除`
+        message: `文件 ${config.fileName} 已成功删除`
+      };
+    }
+    
+    // 删除文件夹（删除文件夹下的所有对象）
+    else if (action === 'deleteFolder') {
+      // 验证配置和参数
+      if (!config.accessKeyId || !config.secretKey || !config.endpoint || !config.bucketName) {
+        return { 
+          success: false, 
+          error: '配置不完整，请提供所有必要的参数' 
+        };
+      }
+      
+      if (!config.fileName) {
+        return { 
+          success: false, 
+          error: '缺少文件夹路径' 
+        };
+      }
+      
+      // 创建S3客户端
+      const s3Client = createS3Client({
+        accessKeyId: config.accessKeyId,
+        secretKey: config.secretKey,
+        endpoint: config.endpoint
+      });
+      
+      // 确保文件夹路径末尾有斜杠
+      const folderPath = config.fileName.endsWith('/') ? config.fileName : `${config.fileName}/`;
+      
+      // 首先列出文件夹中的所有对象
+      const listCommand = new ListObjectsV2Command({
+        Bucket: config.bucketName,
+        Prefix: folderPath
+      });
+      
+      const response = await s3Client.send(listCommand);
+      
+      if (!response.Contents || response.Contents.length === 0) {
+        return { success: true, message: '文件夹为空或不存在' };
+      }
+      
+      // 对每个对象执行删除操作
+      const deletePromises = response.Contents.map(async (obj) => {
+        if (!obj.Key) return;
+        
+        const deleteCommand = new DeleteObjectCommand({
+          Bucket: config.bucketName,
+          Key: obj.Key
+        });
+        
+        await s3Client.send(deleteCommand);
+      });
+      
+      await Promise.all(deletePromises);
+      
+      return {
+        success: true,
+        message: `文件夹 ${config.fileName} 及其所有内容已成功删除`
       };
     }
     

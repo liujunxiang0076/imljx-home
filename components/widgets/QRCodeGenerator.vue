@@ -207,58 +207,65 @@
         </el-form-item>
       </div>
 
-      <!-- 颜色和误差校正部分重新布局 -->
+      <!-- 颜色、误差校正和尺寸部分布局 -->
       <el-row :gutter="20" class="form-row">
         <el-col :span="12">
           <el-form-item label="二维码颜色">
             <div class="color-row">
               <div class="color-picker-group">
+                <span class="color-label">前景</span>
                 <el-color-picker
                   v-model="form.foreground"
                   @change="generateQRCode"
                   size="small"
                 ></el-color-picker>
-                <span class="color-label">前景</span>
               </div>
               <div class="color-picker-group">
+                <span class="color-label">背景</span>
                 <el-color-picker
                   v-model="form.background"
                   @change="generateQRCode"
                   size="small"
                 ></el-color-picker>
-                <span class="color-label">背景</span>
               </div>
             </div>
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="误差校正级别">
-            <el-select
-              v-model="form.errorCorrectionLevel"
-              placeholder="请选择误差校正级别"
-              @change="generateQRCode"
-              style="width: 100%"
-            >
-              <el-option label="低 (L)" value="L"></el-option>
-              <el-option label="中 (M)" value="M"></el-option>
-              <el-option label="高 (Q)" value="Q"></el-option>
-              <el-option label="最高 (H)" value="H"></el-option>
-            </el-select>
-          </el-form-item>
+          <el-row :gutter="10">
+            <el-col :span="12">
+              <el-form-item label="误差校正级别">
+                <el-select
+                  v-model="form.errorCorrectionLevel"
+                  placeholder="请选择级别"
+                  @change="generateQRCode"
+                  style="width: 100%"
+                >
+                  <el-option label="低 (L)" value="L"></el-option>
+                  <el-option label="中 (M)" value="M"></el-option>
+                  <el-option label="高 (Q)" value="Q"></el-option>
+                  <el-option label="最高 (H)" value="H"></el-option>
+                </el-select>
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="二维码尺寸">
+                <el-select
+                  v-model="form.size"
+                  placeholder="请选择尺寸"
+                  @change="generateQRCode"
+                  style="width: 100%"
+                >
+                  <el-option label="小 (150px)" :value="150"></el-option>
+                  <el-option label="中 (250px)" :value="250"></el-option>
+                  <el-option label="大 (350px)" :value="350"></el-option>
+                  <el-option label="最大 (400px)" :value="400"></el-option>
+                </el-select>
+              </el-form-item>
+            </el-col>
+          </el-row>
         </el-col>
       </el-row>
-      
-      <!-- 二维码尺寸 -->
-      <el-form-item label="二维码尺寸">
-        <el-slider
-          v-model="form.size"
-          :min="150"
-          :max="400"
-          :step="10"
-          :marks="{150: '小', 250: '中', 350: '大', 400: '最大'}"
-          @change="generateQRCode"
-        ></el-slider>
-      </el-form-item>
     </el-form>
 
     <!-- 二维码容器 -->
@@ -814,13 +821,13 @@ onUnmounted(() => {
   
   .color-picker-group {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     align-items: center;
     
     .color-label {
-      margin-top: 5px;
-      font-size: 0.8rem;
-      color: #909399;
+      margin-right: 5px;
+      font-size: 0.9rem;
+      color: #606266;
     }
   }
 }

@@ -310,75 +310,25 @@
       </template>
     </el-dialog>
 
-    <!-- 图片预览对话框 -->
-    <el-dialog
-      v-model="showImagePreview"
-      :title="previewFileName"
-      width="80%"
-      :fullscreen="false"
-      center
-      append-to-body
-      destroy-on-close
-      class="image-preview-dialog"
-    >
-      <div v-loading="imageLoading" class="preview-container">
-        <div class="zoom-controls">
-          <el-tooltip content="缩小" placement="top">
-            <el-button circle @click="zoomOut" :disabled="imageZoom <= 0.5">
-              <el-icon><zoom-out /></el-icon>
-            </el-button>
-          </el-tooltip>
-          <el-tooltip content="重置" placement="top">
-            <el-button circle @click="resetZoom">
-              <el-icon><refresh /></el-icon>
-            </el-button>
-          </el-tooltip>
-          <el-tooltip content="放大" placement="top">
-            <el-button circle @click="zoomIn" :disabled="imageZoom >= 3">
-              <el-icon><zoom-in /></el-icon>
-            </el-button>
-          </el-tooltip>
-        </div>
-        
-        <div class="image-wrapper" :style="{ transform: `scale(${imageZoom})`, transformOrigin: 'center center' }">
-          <img 
-            v-if="previewImageUrl && !imageLoadError" 
-            :src="previewImageUrl" 
-            alt="预览图片"
-            @load="imageLoading = false"
-            @error="handleImageError"
-            class="preview-image"
-          />
-          <div v-if="imageLoadError" class="image-error">
-            <el-icon><warning /></el-icon>
-            <p>图片加载失败</p>
-          </div>
-        </div>
-        
-        <div class="navigation-controls" v-if="imageFiles.length > 1">
-          <el-tooltip content="上一个图片" placement="top">
-            <el-button circle @click="showPreviousImage" :disabled="imageLoading">
-              <el-icon><arrow-left /></el-icon>
-            </el-button>
-          </el-tooltip>
-          <span class="image-counter">{{ currentImageIndex + 1 }}/{{ imageFiles.length }}</span>
-          <el-tooltip content="下一个图片" placement="top">
-            <el-button circle @click="showNextImage" :disabled="imageLoading">
-              <el-icon><arrow-right /></el-icon>
-            </el-button>
-          </el-tooltip>
-        </div>
-      </div>
-      <div class="preview-actions">
-        <el-button type="primary" @click="downloadFile(currentPreviewFile)">下载原图</el-button>
-      </div>
-    </el-dialog>
+    <!-- 图片预览 -->
+    <div style="display: none;">
+      <el-image
+        v-if="previewImageUrl"
+        ref="previewImageRef"
+        :src="previewImageUrl"
+        :preview-src-list="imagePreviewList"
+        :initial-index="currentImageIndex"
+        hide-on-click-modal
+        fit="scale-down"
+      />
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, onBeforeUnmount } from 'vue';
+import { ref, onMounted, computed, onBeforeUnmount, nextTick, h } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElImageViewer } from 'element-plus';
 import { UploadFilled, Setting, Refresh, InfoFilled, Folder, Document, Warning, FolderAdd, ZoomOut, ZoomIn, ArrowLeft, ArrowRight } from '@element-plus/icons-vue';
 import type { UploadRequestOptions } from 'element-plus';
 import dayjs from 'dayjs';
@@ -525,7 +475,9 @@ const imageLoading = ref(false);
 const imageLoadError = ref(false);
 const imageZoom = ref(1);
 const imageFiles = ref<string[]>([]);
+const imagePreviewList = ref<string[]>([]);
 const currentImageIndex = ref(0);
+const previewImageRef = ref<InstanceType<typeof import('element-plus').ElImage>>();
 
 // 文件夹操作相关
 const folderToCreate = ref('');
@@ -1087,25 +1039,11 @@ const isImage = (fileName: string) => {
 // 预览图片
 const previewImage = async (fileName: string) => {
   try {
-    imageLoading.value = true;
-    imageLoadError.value = false;
-    showImagePreview.value = true;
+    loading.value = true;
     currentPreviewFile.value = fileName;
-    previewFileName.value = getFileName(fileName);
-    
-    // 重置缩放
-    resetZoom();
     
     // 加载所有图片文件
-    if (imageFiles.value.length === 0) {
-      await loadImageFiles();
-    }
-    
-    // 查找当前图片索引
-    currentImageIndex.value = imageFiles.value.findIndex(file => file === fileName);
-    if (currentImageIndex.value === -1) {
-      currentImageIndex.value = 0;
-    }
+    await loadImageFiles();
     
     // 获取当前预览图片URL
     const response = await fetch('/api/r2?action=getDownloadUrl', {
@@ -1126,15 +1064,71 @@ const previewImage = async (fileName: string) => {
     
     if (data.success && data.downloadUrl) {
       previewImageUrl.value = data.downloadUrl;
+      // 建立预览图片列表
+      imagePreviewList.value = await Promise.all(
+        imageFiles.value.map(async (imgFile) => {
+          const imgResponse = await fetch('/api/r2?action=getDownloadUrl', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ 
+              fileName: imgFile,
+              accessKeyId: r2AccessKeyId.value,
+              secretKey: r2SecretKey.value,
+              bucketName: r2BucketName.value,
+              endpoint: r2Endpoint.value
+            }),
+          });
+          
+          const imgData = await imgResponse.json();
+          return imgData.success ? imgData.downloadUrl : '';
+        })
+      );
+      
+      // 过滤掉空URL
+      imagePreviewList.value = imagePreviewList.value.filter(url => url);
+      
+      // 设置当前图片在列表中的索引
+      const index = imageFiles.value.findIndex(file => file === fileName);
+      if (index !== -1) {
+        currentImageIndex.value = index;
+      }
+      
+      // 使用Element Plus直接创建图片预览器
+      const { createVNode, render } = await import('vue');
+      
+      // 创建容器
+      const container = document.createElement('div');
+      
+      // 创建图片预览组件的虚拟节点
+      const vnode = createVNode(ElImageViewer, {
+        urlList: imagePreviewList.value,
+        initialIndex: currentImageIndex.value,
+        zIndex: 3000,
+        onClose: () => {
+          // 清理DOM - 使用render函数清空容器
+          render(null, container);
+          // 只有当容器还在DOM中时才移除它
+          if (document.body.contains(container)) {
+            document.body.removeChild(container);
+          }
+        }
+      });
+      
+      // 渲染到容器
+      render(vnode, container);
+      
+      // 将容器添加到body
+      document.body.appendChild(container);
+      
     } else {
-      imageLoadError.value = true;
-      imageLoading.value = false;
       ElMessage.error(data.error || '获取图片预览链接失败');
     }
   } catch (error: any) {
-    imageLoadError.value = true;
-    imageLoading.value = false;
     ElMessage.error(error.message || '预览图片失败');
+  } finally {
+    loading.value = false;
   }
 };
 
@@ -1699,6 +1693,7 @@ h2 {
     flex-direction: column;
     justify-content: center;
     align-items: center;
+    height: 500px;
     min-height: 200px;
     max-height: 60vh;
     background-color: #f5f5f5;
@@ -1732,6 +1727,22 @@ h2 {
     object-position: center;
     margin: 0 auto;
     display: block;
+  }
+  
+  :deep(.el-image) {
+    width: 100%;
+    height: 55vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    
+    img {
+      max-height: 100%;
+      height: auto;
+      width: auto;
+      max-width: 100%;
+      object-fit: scale-down;
+    }
   }
 
   .image-error {

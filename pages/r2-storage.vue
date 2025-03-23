@@ -194,7 +194,6 @@
         empty-text="没有文件"
         :default-sort="{prop: 'LastModified', order: 'descending'}"
         class="file-table"
-        :max-height="screenWidth < 768 ? '50vh' : '60vh'"
         size="small"
       >
         <el-table-column prop="Type" label="" width="50">
@@ -287,25 +286,59 @@
     <el-dialog
       v-model="showImagePreview"
       :title="previewFileName"
-      width="90%"
-      :fullscreen="screenWidth < 768"
+      width="80%"
+      :fullscreen="false"
       center
       append-to-body
       destroy-on-close
       class="image-preview-dialog"
     >
       <div v-loading="imageLoading" class="preview-container">
-        <img 
-          v-if="previewImageUrl && !imageLoadError" 
-          :src="previewImageUrl" 
-          alt="预览图片"
-          @load="imageLoading = false"
-          @error="handleImageError"
-          class="preview-image"
-        />
-        <div v-if="imageLoadError" class="image-error">
-          <el-icon><warning /></el-icon>
-          <p>图片加载失败</p>
+        <div class="zoom-controls">
+          <el-tooltip content="缩小" placement="top">
+            <el-button circle @click="zoomOut" :disabled="imageZoom <= 0.5">
+              <el-icon><zoom-out /></el-icon>
+            </el-button>
+          </el-tooltip>
+          <el-tooltip content="重置" placement="top">
+            <el-button circle @click="resetZoom">
+              <el-icon><refresh /></el-icon>
+            </el-button>
+          </el-tooltip>
+          <el-tooltip content="放大" placement="top">
+            <el-button circle @click="zoomIn" :disabled="imageZoom >= 3">
+              <el-icon><zoom-in /></el-icon>
+            </el-button>
+          </el-tooltip>
+        </div>
+        
+        <div class="image-wrapper" :style="{ transform: `scale(${imageZoom})`, transformOrigin: 'center center' }">
+          <img 
+            v-if="previewImageUrl && !imageLoadError" 
+            :src="previewImageUrl" 
+            alt="预览图片"
+            @load="imageLoading = false"
+            @error="handleImageError"
+            class="preview-image"
+          />
+          <div v-if="imageLoadError" class="image-error">
+            <el-icon><warning /></el-icon>
+            <p>图片加载失败</p>
+          </div>
+        </div>
+        
+        <div class="navigation-controls" v-if="imageFiles.length > 1">
+          <el-tooltip content="上一个图片" placement="top">
+            <el-button circle @click="showPreviousImage" :disabled="imageLoading">
+              <el-icon><arrow-left /></el-icon>
+            </el-button>
+          </el-tooltip>
+          <span class="image-counter">{{ currentImageIndex + 1 }}/{{ imageFiles.length }}</span>
+          <el-tooltip content="下一个图片" placement="top">
+            <el-button circle @click="showNextImage" :disabled="imageLoading">
+              <el-icon><arrow-right /></el-icon>
+            </el-button>
+          </el-tooltip>
         </div>
       </div>
       <div class="preview-actions">
@@ -318,7 +351,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, onBeforeUnmount } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { UploadFilled, Setting, Refresh, InfoFilled, Folder, Document, Warning, FolderAdd } from '@element-plus/icons-vue';
+import { UploadFilled, Setting, Refresh, InfoFilled, Folder, Document, Warning, FolderAdd, ZoomOut, ZoomIn, ArrowLeft, ArrowRight } from '@element-plus/icons-vue';
 import type { UploadRequestOptions } from 'element-plus';
 import dayjs from 'dayjs';
 import { useHead } from 'nuxt/app';
@@ -462,9 +495,46 @@ const previewFileName = ref('');
 const currentPreviewFile = ref('');
 const imageLoading = ref(false);
 const imageLoadError = ref(false);
+const imageZoom = ref(1);
+const imageFiles = ref<string[]>([]);
+const currentImageIndex = ref(0);
 
 // 文件夹操作相关
 const folderToCreate = ref('');
+
+// 监听键盘事件处理图片导航
+const setupKeyboardNavigation = () => {
+  const handleKeydown = (e: KeyboardEvent) => {
+    if (!showImagePreview.value) return;
+    
+    switch (e.key) {
+      case 'ArrowLeft':
+        showPreviousImage();
+        break;
+      case 'ArrowRight':
+        showNextImage();
+        break;
+      case 'Escape':
+        showImagePreview.value = false;
+        break;
+      case '+':
+      case '=':
+        zoomIn();
+        break;
+      case '-':
+        zoomOut();
+        break;
+      case '0':
+        resetZoom();
+        break;
+    }
+  };
+  
+  window.addEventListener('keydown', handleKeydown);
+  return () => {
+    window.removeEventListener('keydown', handleKeydown);
+  };
+};
 
 // 页面加载时获取文件列表并尝试加载本地存储的配置
 onMounted(() => {
@@ -479,6 +549,9 @@ onMounted(() => {
   // 添加屏幕宽度监听
   window.addEventListener('resize', updateScreenWidth);
   
+  // 添加键盘导航监听
+  const removeKeyListener = setupKeyboardNavigation();
+  
   // 确保页面可以滚动
   document.body.style.overflow = 'auto';
   document.body.style.height = 'auto';
@@ -487,11 +560,13 @@ onMounted(() => {
   
   // 确保页面初始化后滚动到顶部
   window.scrollTo(0, 0);
-});
-
-onBeforeUnmount(() => {
-  // 移除屏幕宽度监听
-  window.removeEventListener('resize', updateScreenWidth);
+  
+  onBeforeUnmount(() => {
+    // 移除屏幕宽度监听
+    window.removeEventListener('resize', updateScreenWidth);
+    // 移除键盘导航监听
+    removeKeyListener();
+  });
 });
 
 // 从服务端获取默认配置
@@ -966,6 +1041,21 @@ const previewImage = async (fileName: string) => {
     currentPreviewFile.value = fileName;
     previewFileName.value = getFileName(fileName);
     
+    // 重置缩放
+    resetZoom();
+    
+    // 加载所有图片文件
+    if (imageFiles.value.length === 0) {
+      await loadImageFiles();
+    }
+    
+    // 查找当前图片索引
+    currentImageIndex.value = imageFiles.value.findIndex(file => file === fileName);
+    if (currentImageIndex.value === -1) {
+      currentImageIndex.value = 0;
+    }
+    
+    // 获取当前预览图片URL
     const response = await fetch('/api/r2?action=getDownloadUrl', {
       method: 'POST',
       headers: {
@@ -994,6 +1084,35 @@ const previewImage = async (fileName: string) => {
     imageLoading.value = false;
     ElMessage.error(error.message || '预览图片失败');
   }
+};
+
+// 加载当前文件夹所有图片文件列表
+const loadImageFiles = async () => {
+  try {
+    const processedFiles = processFileList(files.value);
+    imageFiles.value = processedFiles
+      .filter(file => file.Type === 'file' && isImage(file.Key))
+      .map(file => file.Key);
+  } catch (error) {
+    console.error('加载图片文件列表失败:', error);
+    imageFiles.value = [];
+  }
+};
+
+// 显示上一个图片
+const showPreviousImage = () => {
+  if (imageFiles.value.length <= 1 || currentImageIndex.value <= 0) return;
+  
+  currentImageIndex.value--;
+  previewImage(imageFiles.value[currentImageIndex.value]);
+};
+
+// 显示下一个图片
+const showNextImage = () => {
+  if (imageFiles.value.length <= 1 || currentImageIndex.value >= imageFiles.value.length - 1) return;
+  
+  currentImageIndex.value++;
+  previewImage(imageFiles.value[currentImageIndex.value]);
 };
 
 // 处理图片加载错误
@@ -1073,6 +1192,21 @@ const createFolder = async () => {
   } finally {
     loading.value = false;
   }
+};
+
+// 放大图片
+const zoomIn = () => {
+  imageZoom.value += 0.1;
+};
+
+// 缩小图片
+const zoomOut = () => {
+  imageZoom.value -= 0.1;
+};
+
+// 重置图片缩放
+const resetZoom = () => {
+  imageZoom.value = 1;
 };
 </script>
 
@@ -1341,6 +1475,7 @@ h2 {
 
 /* 修复移动端滚动问题 */
 :deep(.el-table__body-wrapper) {
+  overflow-y: visible;
   overflow-x: auto;
 }
 
@@ -1374,8 +1509,7 @@ h2 {
 
 :deep(.el-table) {
   font-size: 13px; /* 稍微减小表格字体大小 */
-  max-height: 60vh;
-  overflow-y: auto;
+  overflow-y: visible;
 }
 
 :deep(.el-table .cell) {
@@ -1384,7 +1518,6 @@ h2 {
   
 @media (max-width: $small-mobile-breakpoint) {
   :deep(.el-table) {
-    max-height: 50vh;
     font-size: 12px;
   }
 }
@@ -1426,29 +1559,88 @@ h2 {
 
 /* 图片预览对话框样式 */
 .image-preview-dialog {
+  :deep(.el-dialog) {
+    max-width: 900px;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    margin: 5vh auto !important;
+    
+    @media (max-width: $mobile-breakpoint) {
+      width: 95% !important;
+      max-width: 95%;
+      margin: 2vh auto !important;
+    }
+  }
+  
+  :deep(.el-dialog__header) {
+    padding: 15px 20px;
+    border-bottom: 1px solid #eaeaea;
+    position: relative;
+    z-index: 30;
+  }
+  
+  :deep(.el-dialog__headerbtn) {
+    position: absolute;
+    top: 15px;
+    right: 20px;
+    width: 24px;
+    height: 24px;
+    z-index: 30;
+  }
+  
+  :deep(.el-dialog__close) {
+    font-size: 20px;
+    color: #606266;
+  }
+  
   :deep(.el-dialog__body) {
-    padding: 10px;
+    padding: 0;
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
   }
   
   .preview-container {
     display: flex;
+    flex-direction: column;
     justify-content: center;
     align-items: center;
-    min-height: 300px;
-    max-height: 70vh;
-    overflow: auto;
+    min-height: 200px;
+    max-height: 60vh;
     background-color: #f5f5f5;
     border-radius: 4px;
+    position: relative;
+    padding: 10px 0;
+    overflow: auto;
     
     @media (max-width: $mobile-breakpoint) {
-      min-height: 200px;
+      min-height: 150px;
+      max-height: 50vh;
+      padding: 10px 0;
     }
+  }
+
+  .image-wrapper {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    height: 100%;
+    transition: transform 0.3s ease;
+    overflow: visible;
+    transform-origin: center center;
   }
 
   .preview-image {
     max-width: 100%;
-    max-height: 100%;
+    max-height: 55vh;
     object-fit: contain;
+    object-position: center;
+    margin: 0 auto;
+    display: block;
   }
 
   .image-error {
@@ -1470,10 +1662,45 @@ h2 {
     }
   }
 
+  .zoom-controls {
+    display: flex;
+    gap: 10px;
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 10;
+    background-color: rgba(255, 255, 255, 0.8);
+    border-radius: 20px;
+    padding: 5px 10px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  }
+
+  .navigation-controls {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-top: 15px;
+    gap: 15px;
+    background-color: rgba(255, 255, 255, 0.8);
+    border-radius: 20px;
+    padding: 5px 15px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  }
+
   .preview-actions {
     display: flex;
-    justify-content: flex-end;
-    padding: 10px 0 0 0;
+    justify-content: center;
+    padding: 15px 0;
+    background-color: #fff;
+    border-top: 1px solid #eaeaea;
+  }
+
+  .image-counter {
+    font-size: 14px;
+    background-color: rgba(0, 0, 0, 0.5);
+    color: white;
+    padding: 3px 8px;
+    border-radius: 12px;
   }
 }
 

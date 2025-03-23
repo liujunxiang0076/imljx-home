@@ -309,6 +309,7 @@ import QRCode from 'qrcode'
 import { saveAs } from 'file-saver'
 import { ArrowDown, Download, Document } from '@element-plus/icons-vue'
 import JSZip from 'jszip'
+import { ElMessage, ElLoading } from 'element-plus'
 
 const qrcodeRef = ref(null)
 const canvas = ref(null)
@@ -495,51 +496,87 @@ const generateContent = () => {
 // 验证内容
 const validateContent = () => {
   const content = generateContent()
-  isContentValid.value = content.length > 0
-  return content
+  
+  // 根据不同内容类型验证是否有效
+  if (form.contentType === 'text') {
+    isContentValid.value = form.contentType === 'text' && tags.value.length > 0;
+  } else if (form.contentType === 'url') {
+    isContentValid.value = form.url && form.url.trim() !== '' && form.url !== 'https://';
+  } else if (form.contentType === 'email') {
+    isContentValid.value = form.email.address && form.email.address.trim() !== '';
+  } else if (form.contentType === 'phone') {
+    isContentValid.value = form.phone && form.phone.trim() !== '';
+  } else if (form.contentType === 'sms') {
+    isContentValid.value = form.sms.number && form.sms.number.trim() !== '';
+  } else if (form.contentType === 'wifi') {
+    isContentValid.value = form.wifi.ssid && form.wifi.ssid.trim() !== '';
+  } else if (form.contentType === 'vcard') {
+    isContentValid.value = form.vcard.name && form.vcard.name.trim() !== '';
+  } else {
+    isContentValid.value = false;
+  }
+  
+  return isContentValid.value ? content : '';
 }
 
-// 修改观察器，监听标签变化
-watch(() => [form.contentType, selectedTagIndex.value], () => {
-  validateContent()
-}, { immediate: true })
-
 // 生成二维码
-const generateQRCode = () => {
+const generateQRCode = async () => {
   const content = validateContent()
-  if (!content) return
-
-  // 计算适合的QR码尺寸
-  const padding = window.innerWidth <= 768 ? 32 : 80
-  const containerWidth = Math.min(window.innerWidth - padding, 600)
-  const optimalSize = Math.min(form.size, containerWidth)
-
-  const options = {
-    errorCorrectionLevel: form.errorCorrectionLevel,
-    margin: 2, // 减少边距
-    width: optimalSize,
-    color: {
-      dark: form.foreground,
-      light: form.background
+  if (!content) {
+    // 如果内容无效，清空二维码
+    if (qrcodeRef.value) {
+      qrcodeRef.value.innerHTML = '';
+      canvas.value = null;
     }
+    return;
   }
 
-  if (qrcodeRef.value) {
-    // 清空容器
-    qrcodeRef.value.innerHTML = ''
-    
-    // 创建Canvas元素
-    canvas.value = document.createElement('canvas')
-    qrcodeRef.value.appendChild(canvas.value)
-    
-    // 生成QR码
-    QRCode.toCanvas(canvas.value, content, options, (error) => {
-      if (error) console.error(error)
+  try {
+    // 计算适合的QR码尺寸
+    const padding = window.innerWidth <= 768 ? 32 : 80
+    const containerWidth = Math.min(window.innerWidth - padding, 600)
+    const optimalSize = Math.min(form.size, containerWidth)
+
+    const options = {
+      errorCorrectionLevel: form.errorCorrectionLevel,
+      margin: 2, // 减少边距
+      width: optimalSize,
+      color: {
+        dark: form.foreground,
+        light: form.background
+      }
+    }
+
+    if (qrcodeRef.value) {
+      // 清空容器
+      qrcodeRef.value.innerHTML = ''
+      
+      // 创建Canvas元素
+      canvas.value = document.createElement('canvas')
+      qrcodeRef.value.appendChild(canvas.value)
+      
+      // 生成QR码，使用 Promise 并添加超时处理
+      await new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error('二维码生成超时'))
+        }, 5000)  // 5秒超时
+        
+        QRCode.toCanvas(canvas.value, content, options, (error) => {
+          clearTimeout(timeout)
+          if (error) reject(error)
+          else resolve()
+        })
+      })
+      
       // 确保页面可滚动到底部
       setTimeout(() => {
         window.dispatchEvent(new Event('resize'))
       }, 100)
-    })
+    }
+  } catch (error) {
+    console.error('生成二维码时出错：', error)
+    // 显示错误提示
+    ElMessage.error('生成二维码失败，请稍后重试')
   }
 }
 
@@ -547,6 +584,22 @@ const generateQRCode = () => {
 const handleResize = () => {
   generateQRCode()
 }
+
+// 修改观察器，监听表单内容变化
+watch(() => [
+  form.contentType, 
+  selectedTagIndex.value,
+  form.url,
+  form.email.address,
+  form.phone,
+  form.sms.number,
+  form.wifi.ssid,
+  form.vcard.name
+], () => {
+  generateQRCode();
+}, { immediate: true })
+
+watch(() => form.contentType, generateQRCode)
 
 // 生成安全的文件名
 const getSafeFileName = (text, maxLength = 50) => {
@@ -579,18 +632,27 @@ const downloadQRCode = async (format) => {
     const fileName = getSafeFileName(content);
     
     if (format === 'png') {
-      const dataUrl = await QRCode.toDataURL(content, options)
+      // 添加超时处理
+      const dataUrl = await Promise.race([
+        QRCode.toDataURL(content, options),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('下载超时')), 10000))
+      ])
       saveAs(dataUrl, `${fileName}.png`)
     } else if (format === 'svg') {
-      const svgString = await QRCode.toString(content, {
-        ...options,
-        type: 'svg'
-      })
+      // 添加超时处理
+      const svgString = await Promise.race([
+        QRCode.toString(content, {
+          ...options,
+          type: 'svg'
+        }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('下载超时')), 10000))
+      ])
       const blob = new Blob([svgString], { type: 'image/svg+xml' })
       saveAs(blob, `${fileName}.svg`)
     }
   } catch (error) {
     console.error('下载QR码时出错：', error)
+    ElMessage.error('下载二维码失败，请稍后重试')
   }
 }
 
@@ -612,37 +674,94 @@ const batchDownload = async (format) => {
     // 创建新的JSZip实例
     const zip = new JSZip();
     
-    // 添加所有二维码到zip文件
-    for (let i = 0; i < tags.value.length; i++) {
-      const text = tags.value[i]
-      if (text && text.trim()) {
+    // 显示加载提示
+    const loadingInstance = ElLoading.service({
+      fullscreen: true,
+      text: '正在处理二维码，请稍候...'
+    })
+    
+    try {
+      // 添加所有二维码到zip文件，使用Promise.all并添加超时处理
+      const generatePromises = tags.value.map(async (text, i) => {
+        if (!text || !text.trim()) return;
+        
         // 使用内容作为文件名
         const fileName = getSafeFileName(text);
         
-        if (format === 'png') {
-          const dataUrl = await QRCode.toDataURL(text, options)
-          // 将base64转换为二进制数据
-          const base64Data = dataUrl.split(',')[1];
-          zip.file(`${fileName}.png`, base64Data, {base64: true});
-        } else if (format === 'svg') {
-          const svgString = await QRCode.toString(text, {
-            ...options,
-            type: 'svg'
-          })
-          zip.file(`${fileName}.svg`, svgString);
+        try {
+          if (format === 'png') {
+            // 添加超时处理和错误重试
+            let attempts = 0;
+            let dataUrl;
+            
+            while (attempts < 3) {
+              try {
+                dataUrl = await Promise.race([
+                  QRCode.toDataURL(text, options),
+                  new Promise((_, reject) => setTimeout(() => reject(new Error('生成超时')), 5000))
+                ]);
+                break; // 成功后跳出循环
+              } catch (err) {
+                attempts++;
+                if (attempts >= 3) throw err;
+                await new Promise(r => setTimeout(r, 1000)); // 等待1秒后重试
+              }
+            }
+            
+            // 将base64转换为二进制数据
+            const base64Data = dataUrl.split(',')[1];
+            zip.file(`${fileName}.png`, base64Data, {base64: true});
+          } else if (format === 'svg') {
+            // 添加超时处理和错误重试
+            let attempts = 0;
+            let svgString;
+            
+            while (attempts < 3) {
+              try {
+                svgString = await Promise.race([
+                  QRCode.toString(text, {
+                    ...options,
+                    type: 'svg'
+                  }),
+                  new Promise((_, reject) => setTimeout(() => reject(new Error('生成超时')), 5000))
+                ]);
+                break; // 成功后跳出循环
+              } catch (err) {
+                attempts++;
+                if (attempts >= 3) throw err;
+                await new Promise(r => setTimeout(r, 1000)); // 等待1秒后重试
+              }
+            }
+            
+            zip.file(`${fileName}.svg`, svgString);
+          }
+        } catch (error) {
+          console.error(`处理第${i+1}个二维码时出错:`, error);
+          // 继续处理其他二维码，不中断整体流程
         }
-      }
+      });
+      
+      // 等待所有二维码处理完成
+      await Promise.all(generatePromises);
+      
+      // 生成并下载zip文件
+      const zipBlob = await zip.generateAsync({
+        type: 'blob',
+        compression: 'DEFLATE',
+        compressionOptions: {
+          level: 6
+        }
+      });
+      saveAs(zipBlob, `QR_code.zip`);
+    } finally {
+      // 无论成功失败都关闭加载提示
+      loadingInstance.close();
     }
-    
-    // 生成并下载zip文件
-    const zipBlob = await zip.generateAsync({type: 'blob'});
-    saveAs(zipBlob, `QR_code.zip`);
   } catch (error) {
-    console.error('批量下载QR码时出错：', error)
+    console.error('批量下载QR码时出错：', error);
+    ElMessage.error('批量下载二维码失败，请减少数量后重试');
   }
 }
-
-watch(() => form.contentType, generateQRCode)
 
 onMounted(() => {
   // 如果有已存在的文本，转换为标签

@@ -96,70 +96,22 @@
       </div>
     </div>
     
-    <!-- 上传文件表单 -->
-    <div class="upload-section">
-      <h2>文件上传</h2>
-      <div v-if="hasR2Config">
-        <div class="upload-actions">
-          <el-input
-            v-model="folderToCreate"
-            placeholder="输入文件夹名称"
-            class="create-folder-input"
-            size="small"
-          >
-            <template #append>
-              <el-button @click="createFolder" type="primary" :disabled="!folderToCreate.trim()">
-                <el-icon><folder-add /></el-icon> 新建文件夹
-              </el-button>
-            </template>
-          </el-input>
-        </div>
-
-        <el-upload
-          class="upload"
-          drag
-          :http-request="uploadFile"
-          :show-file-list="false"
-          :limit="1"
-          accept="*/*"
-        >
-          <el-icon class="el-icon--upload"><upload-filled /></el-icon>
-          <div class="el-upload__text">
-            拖拽文件到此处或 <em>点击上传</em>
-          </div>
-          <template #tip>
-            <div class="el-upload__tip">
-              将上传到当前文件夹: <strong>{{ currentPath || '根目录' }}</strong>
-            </div>
-          </template>
-        </el-upload>
-      </div>
-      <div v-else class="no-config-tip">
-        <el-alert
-          title="未配置存储"
-          type="warning"
-          description="请先完成对象存储配置后再上传文件"
-          show-icon
-          :closable="false"
-        >
-          <template #default>
-            <el-button type="primary" size="small" @click="showConfig = true" style="margin-top: 10px;">
-              <el-icon><setting /></el-icon> 立即配置
-            </el-button>
-          </template>
-        </el-alert>
-      </div>
-      <div v-if="uploading" class="upload-progress">
-        <el-progress :percentage="uploadProgress" />
-        <p class="upload-status">{{ uploadStatusText }}</p>
-      </div>
-    </div>
-
     <!-- 文件列表 -->
     <div class="files-section">
       <div class="files-header">
         <div class="path-navigation">
           <h2>文件列表</h2>
+          <div class="file-actions-main">
+            <el-button type="primary" @click="showUploadDialog" size="small" :disabled="!hasR2Config">
+              <el-icon><upload-filled /></el-icon> 上传文件
+            </el-button>
+            <el-button type="success" @click="showCreateFolderDialog" size="small" :disabled="!hasR2Config">
+              <el-icon><folder-add /></el-icon> 创建目录
+            </el-button>
+            <el-button type="info" @click="refreshFileList" :loading="loading" size="small">
+              <el-icon><refresh /></el-icon> 刷新
+            </el-button>
+          </div>
           <div class="breadcrumb">
             <el-breadcrumb separator="/">
               <el-breadcrumb-item @click="navigateToRoot">根目录</el-breadcrumb-item>
@@ -173,18 +125,22 @@
             </el-breadcrumb>
           </div>
         </div>
-        <div class="files-actions">
-          <el-button type="primary" @click="refreshFileList" :loading="loading" size="small">
-            <el-icon><refresh /></el-icon> 刷新
-          </el-button>
-          
-          <el-select v-model="pageSize" placeholder="每页显示" size="small" style="width: 110px;">
-            <el-option :value="10" label="10条/页" />
-            <el-option :value="20" label="20条/页" />
-            <el-option :value="50" label="50条/页" />
-            <el-option :value="100" label="100条/页" />
-          </el-select>
-        </div>
+      </div>
+      
+      <div v-if="!hasR2Config" class="no-config-tip">
+        <el-alert
+          title="未配置存储"
+          type="warning"
+          description="请先完成对象存储配置后再使用文件管理功能"
+          show-icon
+          :closable="false"
+        >
+          <template #default>
+            <el-button type="primary" size="small" @click="showConfig = true" style="margin-top: 10px;">
+              <el-icon><setting /></el-icon> 立即配置
+            </el-button>
+          </template>
+        </el-alert>
       </div>
       
       <el-table 
@@ -204,7 +160,7 @@
         </el-table-column>
         <el-table-column prop="Key" label="文件名" min-width="180">
           <template #default="scope">
-            <el-tooltip effect="dark" :content="getFileName(scope.row.Key)" placement="top">
+            <el-tooltip v-if="scope.row.Type !== 'folder' && isNameTooLong(getFileName(scope.row.Key))" effect="dark" :content="getFileName(scope.row.Key)" placement="top">
               <span 
                 class="file-name" 
                 :class="{ 'folder-name': scope.row.Type === 'folder' }" 
@@ -213,6 +169,14 @@
                 {{ getFileName(scope.row.Key) }}
               </span>
             </el-tooltip>
+            <span 
+              v-else
+              class="file-name" 
+              :class="{ 'folder-name': scope.row.Type === 'folder' }" 
+              @click="scope.row.Type === 'folder' ? openFolder(scope.row.Key) : null"
+            >
+              {{ getFileName(scope.row.Key) }}
+            </span>
           </template>
         </el-table-column>
         <el-table-column prop="FileType" label="格式" min-width="80" :visible="screenWidth >= 480">
@@ -251,8 +215,8 @@
           v-model:current-page="currentPage"
           v-model:page-size="pageSize"
           :page-sizes="[10, 20, 50, 100]"
-          layout="total, sizes, prev, pager, next"
-          :total="files.length"
+          layout="total, prev, pager, next, sizes"
+          :total="processFileList(files).length"
           @size-change="handleSizeChange"
           @current-change="handleCurrentChange"
           background
@@ -281,6 +245,70 @@
         </el-collapse>
       </div>
     </div>
+
+    <!-- 上传文件对话框 -->
+    <el-dialog
+      v-model="showUpload"
+      title="上传文件"
+      width="90%"
+      :max-width="500"
+      top="5vh"
+      :fullscreen="screenWidth < 600"
+      align-center
+      destroy-on-close
+    >
+      <div class="upload-container">
+        <el-upload
+          class="upload"
+          drag
+          :http-request="uploadFile"
+          :show-file-list="false"
+          :limit="1"
+          accept="*/*"
+        >
+          <el-icon class="el-icon--upload"><upload-filled /></el-icon>
+          <div class="el-upload__text">
+            拖拽文件到此处或 <em>点击上传</em>
+          </div>
+          <template #tip>
+            <div class="el-upload__tip">
+              将上传到当前文件夹: <strong>{{ currentPath || '根目录' }}</strong>
+            </div>
+          </template>
+        </el-upload>
+        
+        <div v-if="uploading" class="upload-progress">
+          <el-progress :percentage="uploadProgress" />
+          <p class="upload-status">{{ uploadStatusText }}</p>
+        </div>
+      </div>
+    </el-dialog>
+    
+    <!-- 创建文件夹对话框 -->
+    <el-dialog
+      v-model="showCreateFolder"
+      title="创建目录"
+      width="90%"
+      :max-width="500"
+      top="20vh"
+      align-center
+      destroy-on-close
+    >
+      <el-form>
+        <el-form-item label="目录名称">
+          <el-input v-model="folderToCreate" placeholder="请输入目录名称" />
+        </el-form-item>
+        <div class="folder-location-tip">
+          将在当前位置创建: <strong>{{ currentPath ? currentPath + '/' : '' }}{{ folderToCreate || '新目录' }}</strong>
+        </div>
+      </el-form>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="showCreateFolder = false">取消</el-button>
+          <el-button type="primary" @click="createFolder" :disabled="!folderToCreate.trim()">创建</el-button>
+        </div>
+      </template>
+    </el-dialog>
 
     <!-- 图片预览对话框 -->
     <el-dialog
@@ -501,6 +529,10 @@ const currentImageIndex = ref(0);
 
 // 文件夹操作相关
 const folderToCreate = ref('');
+
+// 对话框控制
+const showUpload = ref(false);
+const showCreateFolder = ref(false);
 
 // 监听键盘事件处理图片导航
 const setupKeyboardNavigation = () => {
@@ -781,30 +813,35 @@ const refreshFileList = async () => {
 
 // 上传文件
 const uploadFile = async (options: UploadRequestOptions) => {
-  // 检查是否有配置
-  if (!r2AccessKeyId.value || !r2SecretKey.value || !r2BucketName.value || !r2Endpoint.value) {
-    ElMessage.warning('请先配置R2存储');
+  if (!hasR2Config.value) {
+    ElMessage.warning('请先完成对象存储配置后再上传文件');
     return;
   }
   
   const file = options.file;
-  uploading.value = true;
-  uploadProgress.value = 0;
-  uploadStatusText.value = '准备上传...';
-  
-  // 构建文件路径（当前目录 + 文件名）
-  const filePath = currentPath.value ? `${currentPath.value}/${file.name}` : file.name;
   
   try {
-    // 1. 获取预签名URL
+    uploading.value = true;
+    uploadProgress.value = 0;
+    uploadStatusText.value = '准备上传...';
+    
+    // 构建文件名
+    let fileName = file.name;
+    if (currentPath.value) {
+      fileName = `${currentPath.value}/${fileName}`;
+    }
+    
+    console.log(`上传文件: ${fileName}, 类型: ${file.type}, 大小: ${formatFileSize(file.size)}`);
+    
+    // 获取预签名上传URL
     uploadStatusText.value = '获取上传链接...';
-    const urlResponse = await fetch('/api/r2?action=getUploadUrl', {
+    const response = await fetch('/api/r2?action=getUploadUrl', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        fileName: filePath,
+      body: JSON.stringify({ 
+        fileName,
         contentType: file.type || 'application/octet-stream',
         accessKeyId: r2AccessKeyId.value,
         secretKey: r2SecretKey.value,
@@ -813,57 +850,72 @@ const uploadFile = async (options: UploadRequestOptions) => {
       }),
     });
     
-    const urlData = await urlResponse.json();
+    const data = await response.json();
     
-    if (!urlData.success) {
-      throw new Error(urlData.error || '获取上传链接失败');
+    if (!data.success) {
+      throw new Error(data.error || '获取上传链接失败');
     }
     
-    // 2. 使用预签名URL上传文件
+    // 上传到预签名URL
     uploadStatusText.value = '正在上传...';
     
-    // 使用XMLHttpRequest以便跟踪进度
-    const xhr = new XMLHttpRequest();
-    
-    // 设置进度监听
-    xhr.upload.onprogress = (event) => {
-      if (event.lengthComputable) {
-        uploadProgress.value = Math.round((event.loaded / event.total) * 100);
-      }
-    };
-    
-    // 使用Promise包装XHR请求
-    await new Promise<void>((resolve, reject) => {
-      xhr.open('PUT', urlData.uploadUrl, true);
-      xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+    // 使用XMLHttpRequest以支持进度监控
+    await new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
       
-      xhr.onload = () => {
+      xhr.upload.addEventListener('progress', (event) => {
+        if (event.lengthComputable) {
+          const percentComplete = Math.round((event.loaded / event.total) * 100);
+          uploadProgress.value = percentComplete;
+          uploadStatusText.value = `上传中... ${percentComplete}%`;
+        }
+      });
+      
+      xhr.addEventListener('load', () => {
         if (xhr.status >= 200 && xhr.status < 300) {
-          resolve();
+          resolve(xhr.response);
         } else {
           reject(new Error(`上传失败: ${xhr.status} ${xhr.statusText}`));
         }
-      };
+      });
       
-      xhr.onerror = () => {
-        reject(new Error('网络错误，上传失败'));
-      };
+      xhr.addEventListener('error', () => {
+        reject(new Error('上传过程中发生网络错误'));
+      });
       
+      xhr.addEventListener('abort', () => {
+        reject(new Error('上传已取消'));
+      });
+      
+      xhr.open('PUT', data.uploadUrl);
+      xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
       xhr.send(file);
     });
     
+    // 上传成功
+    uploadProgress.value = 100;
     uploadStatusText.value = '上传成功!';
-    ElMessage.success('文件上传成功');
+    ElMessage.success(`文件 ${file.name} 上传成功`);
     
     // 刷新文件列表
     await refreshFileList();
-  } catch (error: any) {
-    ElMessage.error(error.message || '上传失败');
-    uploadStatusText.value = `上传失败: ${error.message}`;
-  } finally {
+    
+    // 延迟关闭上传状态
     setTimeout(() => {
       uploading.value = false;
-    }, 2000);
+      showUpload.value = false; // 关闭上传对话框
+    }, 1000);
+  } catch (error: any) {
+    console.error('上传文件失败:', error);
+    uploadProgress.value = 0;
+    uploadStatusText.value = `上传失败: ${error.message}`;
+    ElMessage.error({
+      message: `上传失败: ${error.message}`,
+      duration: 5000
+    });
+    setTimeout(() => {
+      uploading.value = false;
+    }, 3000);
   }
 };
 
@@ -1122,6 +1174,25 @@ const handleImageError = () => {
   ElMessage.error('图片加载失败，可能是格式不兼容或链接已过期');
 };
 
+// 显示上传文件对话框
+const showUploadDialog = () => {
+  if (!hasR2Config.value) {
+    ElMessage.warning('请先配置对象存储后再上传文件');
+    return;
+  }
+  showUpload.value = true;
+};
+
+// 显示创建文件夹对话框
+const showCreateFolderDialog = () => {
+  if (!hasR2Config.value) {
+    ElMessage.warning('请先配置对象存储后再创建文件夹');
+    return;
+  }
+  folderToCreate.value = '';
+  showCreateFolder.value = true;
+};
+
 // 创建文件夹
 const createFolder = async () => {
   if (!folderToCreate.value.trim()) {
@@ -1172,6 +1243,7 @@ const createFolder = async () => {
     console.log('文件夹创建成功');
     ElMessage.success(`文件夹 "${folderToCreate.value}" 创建成功`);
     folderToCreate.value = '';
+    showCreateFolder.value = false; // 关闭对话框
     await refreshFileList();
   } catch (error: any) {
     console.error('创建文件夹错误:', error);
@@ -1197,6 +1269,14 @@ const zoomOut = () => {
 // 重置图片缩放
 const resetZoom = () => {
   imageZoom.value = 1;
+};
+
+// 判断文件名是否过长需要提示
+const isNameTooLong = (name: string) => {
+  // 通过基本字符宽度估算，假设每个字符平均宽度为10px，计算名称真实宽度是否超过显示区域
+  // 这里假设最大显示宽度为240px，根据实际情况可调整
+  const estimatedWidth = name.length * 10;
+  return estimatedWidth > 240;
 };
 </script>
 
@@ -1412,14 +1492,16 @@ h2 {
   }
 }
 
-.files-actions {
+.file-actions-main {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   align-items: center;
   
-  @media (max-width: $small-mobile-breakpoint) {
-    width: 100%;
-    justify-content: space-between;
+  @media (max-width: $mobile-breakpoint) {
+    flex-direction: column;
+    align-items: stretch;
+    margin-top: 10px;
   }
 }
 
@@ -1524,13 +1606,32 @@ h2 {
 .path-navigation {
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  margin-bottom: 10px;
+  gap: 10px;
+  margin-bottom: 15px;
+  
+  h2 {
+    margin-bottom: 0;
+  }
+  
+  .file-actions-main {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 10px 0;
+    
+    @media (max-width: $mobile-breakpoint) {
+      flex-direction: row;
+      justify-content: flex-start;
+    }
+  }
   
   .breadcrumb {
     display: flex;
     align-items: center;
     font-size: 14px;
+    padding: 8px 12px;
+    background-color: #f8f9fa;
+    border-radius: 4px;
     
     @media (max-width: $mobile-breakpoint) {
       font-size: 12px;
@@ -1718,6 +1819,85 @@ h2 {
         max-width: 400px;
       }
     }
+  }
+}
+
+/* 批量操作区域 */
+.batch-actions {
+  margin-top: 15px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+/* 文件操作按钮组样式 */
+.files-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  
+  @media (max-width: $mobile-breakpoint) {
+    flex-direction: column;
+    align-items: stretch;
+    margin-top: 10px;
+  }
+}
+
+/* 上传对话框样式 */
+.upload-container {
+  display: flex;
+  flex-direction: column;
+  
+  .upload {
+    width: 100%;
+    
+    :deep(.el-upload-dragger) {
+      width: auto;
+      height: 180px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      
+      @media (max-width: $mobile-breakpoint) {
+        height: 150px;
+      }
+    }
+  }
+  
+  .upload-progress {
+    margin-top: 15px;
+    padding: 10px;
+    background-color: #f9f9f9;
+    border-radius: 4px;
+    
+    .upload-status {
+      margin-top: 8px;
+      text-align: center;
+      color: #606266;
+      font-size: 14px;
+    }
+  }
+}
+
+/* 文件夹位置提示 */
+.folder-location-tip {
+  margin-top: 10px;
+  padding: 10px;
+  background-color: #f8f8f8;
+  border-radius: 4px;
+  border-left: 3px solid #409eff;
+  color: #606266;
+}
+
+/* 对话框底部按钮 */
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  
+  @media (max-width: $small-mobile-breakpoint) {
+    flex-direction: column;
   }
 }
 </style> 

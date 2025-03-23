@@ -108,6 +108,14 @@
             <el-button type="success" @click="showCreateFolderDialog" size="small" :disabled="!hasR2Config">
               <el-icon><folder-add /></el-icon> 创建目录
             </el-button>
+            <el-button 
+              type="danger" 
+              @click="confirmBatchDelete" 
+              size="small" 
+              :disabled="!hasR2Config || selectedFiles.length === 0"
+            >
+              <el-icon><delete /></el-icon> 批量删除
+            </el-button>
             <el-button type="info" @click="refreshFileList" :loading="loading" size="small">
               <el-icon><refresh /></el-icon> 刷新
             </el-button>
@@ -151,7 +159,9 @@
         :default-sort="{prop: 'LastModified', order: 'descending'}"
         class="file-table"
         size="small"
+        @selection-change="handleSelectionChange"
       >
+        <el-table-column type="selection" width="55" />
         <el-table-column prop="Type" label="" width="50">
           <template #default="scope">
             <el-icon v-if="scope.row.Type === 'folder'"><folder /></el-icon>
@@ -250,8 +260,8 @@
     <el-dialog
       v-model="showUpload"
       title="上传文件"
-      width="90%"
-      :max-width="500"
+      width="80%"
+      :max-width="400"
       top="5vh"
       :fullscreen="screenWidth < 600"
       align-center
@@ -329,7 +339,7 @@
 import { ref, onMounted, computed, onBeforeUnmount, nextTick, h } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { ElImageViewer } from 'element-plus';
-import { UploadFilled, Setting, Refresh, InfoFilled, Folder, Document, Warning, FolderAdd, ZoomOut, ZoomIn, ArrowLeft, ArrowRight } from '@element-plus/icons-vue';
+import { UploadFilled, Setting, Refresh, InfoFilled, Folder, Document, Warning, FolderAdd, ZoomOut, ZoomIn, ArrowLeft, ArrowRight, Delete } from '@element-plus/icons-vue';
 import type { UploadRequestOptions } from 'element-plus';
 import dayjs from 'dayjs';
 import { useHead } from 'nuxt/app';
@@ -361,6 +371,7 @@ const connectionSuccess = ref(false);
 const connectionMessage = ref('');
 const configSource = ref<'local' | 'env' | 'none'>('none');
 const showTips = ref(true); // 默认显示排查建议
+const selectedFiles = ref<any[]>([]); // 选中的文件
 
 // 文件夹导航相关
 const currentPath = ref('');
@@ -1272,6 +1283,116 @@ const isNameTooLong = (name: string) => {
   const estimatedWidth = name.length * 10;
   return estimatedWidth > 240;
 };
+
+// 处理表格多选
+const handleSelectionChange = (selection: any[]) => {
+  selectedFiles.value = selection;
+};
+
+// 批量删除确认
+const confirmBatchDelete = () => {
+  if (selectedFiles.value.length === 0) {
+    ElMessage.warning('请至少选择一个文件或文件夹');
+    return;
+  }
+
+  const folderCount = selectedFiles.value.filter(item => item.Type === 'folder').length;
+  const fileCount = selectedFiles.value.length - folderCount;
+
+  let message = '确定要删除所选';
+  if (fileCount > 0) {
+    message += `${fileCount}个文件`;
+  }
+  if (folderCount > 0) {
+    message += fileCount > 0 ? `和${folderCount}个文件夹` : `${folderCount}个文件夹`;
+  }
+  message += '吗?';
+  
+  if (folderCount > 0) {
+    message += '\n注意：删除文件夹将同时删除其中的所有文件！';
+  }
+  
+  ElMessageBox.confirm(
+    message,
+    '批量删除确认',
+    {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning',
+    }
+  ).then(() => {
+    batchDelete();
+  }).catch(() => {
+    // 用户取消操作
+  });
+};
+
+// 批量删除文件和文件夹
+const batchDelete = async () => {
+  if (selectedFiles.value.length === 0) return;
+  
+  loading.value = true;
+  try {
+    let successCount = 0;
+    let failCount = 0;
+    
+    // 逐个删除所选文件
+    for (const file of selectedFiles.value) {
+      try {
+        const isFolder = file.Type === 'folder';
+        const action = isFolder ? 'deleteFolder' : 'delete';
+        
+        const response = await fetch(`/api/r2?action=${action}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            fileName: file.Key,
+            accessKeyId: r2AccessKeyId.value,
+            secretKey: r2SecretKey.value,
+            bucketName: r2BucketName.value,
+            endpoint: r2Endpoint.value
+          }),
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          successCount++;
+        } else {
+          failCount++;
+          console.error(`删除失败: ${file.Key}, 错误: ${data.error}`);
+        }
+      } catch (error: any) {
+        failCount++;
+        console.error(`删除失败: ${file.Key}, 错误: ${error.message}`);
+      }
+    }
+    
+    // 显示删除结果
+    if (successCount > 0 && failCount === 0) {
+      ElMessage.success(`成功删除了${successCount}个项目`);
+    } else if (successCount > 0 && failCount > 0) {
+      ElMessage({
+        message: `成功删除了${successCount}个项目，${failCount}个项目删除失败`,
+        type: 'warning',
+        duration: 5000
+      });
+    } else {
+      ElMessage.error('删除失败');
+    }
+    
+    // 刷新文件列表
+    await refreshFileList();
+  } catch (error: any) {
+    ElMessage.error(`批量删除出错: ${error.message}`);
+  } finally {
+    loading.value = false;
+    // 清空选择
+    selectedFiles.value = [];
+  }
+};
 </script>
 
 <style lang="scss" scoped>
@@ -1589,7 +1710,30 @@ h2 {
 }
 
 :deep(.el-upload-dragger) {
-  padding: 15px;
+  width: auto;
+  height: 120px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 10px;
+  text-align: center;
+  
+  @media (max-width: $mobile-breakpoint) {
+    height: 100px;
+  }
+  
+  .el-icon--upload {
+    margin: 0 auto 8px;
+    font-size: 28px;
+  }
+  
+  .el-upload__text {
+    font-size: 14px;
+    line-height: 1.4;
+    text-align: center;
+    width: 100%;
+  }
 }
 
 :deep(p), :deep(h3), :deep(h4) {
@@ -1865,28 +2009,50 @@ h2 {
     
     :deep(.el-upload-dragger) {
       width: auto;
-      height: 180px;
+      height: 120px;
       display: flex;
       flex-direction: column;
       justify-content: center;
+      align-items: center;
+      padding: 10px;
+      text-align: center;
       
       @media (max-width: $mobile-breakpoint) {
-        height: 150px;
+        height: 100px;
       }
+      
+      .el-icon--upload {
+        margin: 0 auto 8px;
+        font-size: 28px;
+      }
+      
+      .el-upload__text {
+        font-size: 14px;
+        line-height: 1.4;
+        text-align: center;
+        width: 100%;
+      }
+    }
+    
+    :deep(.el-upload__tip) {
+      line-height: 1.4;
+      padding: 5px 0;
+      font-size: 12px;
+      margin-top: 5px;
     }
   }
   
   .upload-progress {
-    margin-top: 15px;
-    padding: 10px;
+    margin-top: 12px;
+    padding: 8px;
     background-color: #f9f9f9;
     border-radius: 4px;
     
     .upload-status {
-      margin-top: 8px;
+      margin-top: 5px;
       text-align: center;
       color: #606266;
-      font-size: 14px;
+      font-size: 13px;
     }
   }
 }

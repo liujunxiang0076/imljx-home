@@ -100,6 +100,21 @@
     <div class="upload-section">
       <h2>文件上传</h2>
       <div v-if="hasR2Config">
+        <div class="upload-actions">
+          <el-input
+            v-model="folderToCreate"
+            placeholder="输入文件夹名称"
+            class="create-folder-input"
+            size="small"
+          >
+            <template #append>
+              <el-button @click="createFolder" type="primary" :disabled="!folderToCreate.trim()">
+                <el-icon><folder-add /></el-icon> 新建文件夹
+              </el-button>
+            </template>
+          </el-input>
+        </div>
+
         <el-upload
           class="upload"
           drag
@@ -113,7 +128,9 @@
             拖拽文件到此处或 <em>点击上传</em>
           </div>
           <template #tip>
-            <div class="el-upload__tip">支持任意类型文件上传到当前文件夹</div>
+            <div class="el-upload__tip">
+              将上传到当前文件夹: <strong>{{ currentPath || '根目录' }}</strong>
+            </div>
           </template>
         </el-upload>
       </div>
@@ -301,7 +318,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, onBeforeUnmount } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { UploadFilled, Setting, Refresh, InfoFilled, Folder, Document, Warning } from '@element-plus/icons-vue';
+import { UploadFilled, Setting, Refresh, InfoFilled, Folder, Document, Warning, FolderAdd } from '@element-plus/icons-vue';
 import type { UploadRequestOptions } from 'element-plus';
 import dayjs from 'dayjs';
 import { useHead } from 'nuxt/app';
@@ -445,6 +462,9 @@ const previewFileName = ref('');
 const currentPreviewFile = ref('');
 const imageLoading = ref(false);
 const imageLoadError = ref(false);
+
+// 文件夹操作相关
+const folderToCreate = ref('');
 
 // 页面加载时获取文件列表并尝试加载本地存储的配置
 onMounted(() => {
@@ -982,6 +1002,78 @@ const handleImageError = () => {
   imageLoading.value = false;
   ElMessage.error('图片加载失败，可能是格式不兼容或链接已过期');
 };
+
+// 创建文件夹
+const createFolder = async () => {
+  if (!folderToCreate.value.trim()) {
+    ElMessage.warning('请输入文件夹名称');
+    return;
+  }
+
+  // 验证文件夹名称 - 不允许特殊字符
+  const invalidChars = /[<>:"/\\|?*]/g;
+  if (invalidChars.test(folderToCreate.value)) {
+    ElMessage.error('文件夹名称不能包含以下字符: < > : " / \\ | ? *');
+    return;
+  }
+
+  try {
+    loading.value = true;
+    
+    // 构建文件夹路径
+    let folderPath = folderToCreate.value.trim();
+    if (currentPath.value) {
+      folderPath = `${currentPath.value}/${folderPath}`;
+    }
+    
+    // 创建一个空的占位文件来表示文件夹
+    folderPath = `${folderPath}/.folder`;
+    
+    // 获取上传URL
+    const urlResponse = await fetch('/api/r2?action=getUploadUrl', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        fileName: folderPath,
+        contentType: 'application/x-directory',
+        accessKeyId: r2AccessKeyId.value,
+        secretKey: r2SecretKey.value,
+        bucketName: r2BucketName.value,
+        endpoint: r2Endpoint.value
+      }),
+    });
+    
+    const urlData = await urlResponse.json();
+    
+    if (!urlData.success) {
+      throw new Error(urlData.error || '获取上传链接失败');
+    }
+    
+    // 上传空文件作为文件夹标记
+    const emptyBlob = new Blob([''], { type: 'application/x-directory' });
+    const response = await fetch(urlData.uploadUrl, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/x-directory',
+      },
+      body: emptyBlob,
+    });
+    
+    if (!response.ok) {
+      throw new Error(`创建文件夹失败: ${response.status} ${response.statusText}`);
+    }
+    
+    ElMessage.success(`文件夹 "${folderToCreate.value}" 创建成功`);
+    folderToCreate.value = '';
+    await refreshFileList();
+  } catch (error: any) {
+    ElMessage.error(`创建文件夹失败: ${error.message}`);
+  } finally {
+    loading.value = false;
+  }
+};
 </script>
 
 <style lang="scss" scoped>
@@ -1393,6 +1485,22 @@ h2 {
   :deep(.el-alert) {
     max-width: 450px;
     width: 100%;
+  }
+}
+
+.upload-section {
+  @extend %section-style;
+  
+  .upload-actions {
+    margin-bottom: 12px;
+    
+    .create-folder-input {
+      max-width: 100%;
+      
+      @media (min-width: $mobile-breakpoint) {
+        max-width: 400px;
+      }
+    }
   }
 }
 </style> 

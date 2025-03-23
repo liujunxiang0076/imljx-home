@@ -168,6 +168,62 @@ export default defineEventHandler(async (event) => {
       return { success: true, objects: response.Contents || [] };
     }
     
+    // 创建文件夹
+    else if (action === 'createFolder') {
+      // 验证配置和参数
+      if (!config.accessKeyId || !config.secretKey || !config.endpoint || !config.bucketName) {
+        return { 
+          success: false, 
+          error: '配置不完整，请提供所有必要的参数' 
+        };
+      }
+      
+      // 从请求体中获取文件夹路径
+      const body = await readBody(event);
+      const folderPath = body.folderPath;
+      
+      if (!folderPath) {
+        return { 
+          success: false, 
+          error: '缺少文件夹路径' 
+        };
+      }
+      
+      // 创建S3客户端
+      const s3Client = createS3Client({
+        accessKeyId: config.accessKeyId,
+        secretKey: config.secretKey,
+        endpoint: config.endpoint
+      });
+      
+      // 确保文件夹路径末尾有斜杠，并创建一个空的.folder文件
+      const folderKey = folderPath.endsWith('/') ? `${folderPath}.folder` : `${folderPath}/.folder`;
+      
+      try {
+        // 使用PutObject创建一个空文件作为文件夹标记
+        const command = new PutObjectCommand({
+          Bucket: config.bucketName,
+          Key: folderKey,
+          Body: '',
+          ContentType: 'application/x-directory'
+        });
+        
+        await s3Client.send(command);
+        
+        return {
+          success: true,
+          message: `文件夹 ${folderPath} 创建成功`
+        };
+      } catch (error: any) {
+        console.error('创建文件夹失败:', error);
+        return {
+          success: false,
+          error: `创建文件夹失败: ${error.message}`,
+          errorCode: error.code || 'UNKNOWN'
+        };
+      }
+    }
+    
     // 获取预签名上传URL
     else if (action === 'getUploadUrl') {
       // 验证配置和参数

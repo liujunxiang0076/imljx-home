@@ -1145,18 +1145,16 @@ const createFolder = async () => {
       folderPath = `${currentPath.value}/${folderPath}`;
     }
     
-    // 创建一个空的占位文件来表示文件夹
-    folderPath = `${folderPath}/.folder`;
+    console.log('正在创建文件夹:', folderPath);
     
-    // 获取上传URL
-    const urlResponse = await fetch('/api/r2?action=getUploadUrl', {
+    // 使用服务器端API创建文件夹，而不是直接使用预签名URL
+    const response = await fetch('/api/r2?action=createFolder', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        fileName: folderPath,
-        contentType: 'application/x-directory',
+        folderPath: folderPath,
         accessKeyId: r2AccessKeyId.value,
         secretKey: r2SecretKey.value,
         bucketName: r2BucketName.value,
@@ -1164,31 +1162,23 @@ const createFolder = async () => {
       }),
     });
     
-    const urlData = await urlResponse.json();
+    const data = await response.json();
+    console.log('创建文件夹响应:', data);
     
-    if (!urlData.success) {
-      throw new Error(urlData.error || '获取上传链接失败');
+    if (!data.success) {
+      throw new Error(data.error || '创建文件夹失败');
     }
     
-    // 上传空文件作为文件夹标记
-    const emptyBlob = new Blob([''], { type: 'application/x-directory' });
-    const response = await fetch(urlData.uploadUrl, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/x-directory',
-      },
-      body: emptyBlob,
-    });
-    
-    if (!response.ok) {
-      throw new Error(`创建文件夹失败: ${response.status} ${response.statusText}`);
-    }
-    
+    console.log('文件夹创建成功');
     ElMessage.success(`文件夹 "${folderToCreate.value}" 创建成功`);
     folderToCreate.value = '';
     await refreshFileList();
   } catch (error: any) {
-    ElMessage.error(`创建文件夹失败: ${error.message}`);
+    console.error('创建文件夹错误:', error);
+    ElMessage.error({
+      message: `创建文件夹失败: ${error.message}`,
+      duration: 5000
+    });
   } finally {
     loading.value = false;
   }

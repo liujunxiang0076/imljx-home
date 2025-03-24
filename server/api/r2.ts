@@ -3,6 +3,21 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { defineEventHandler, readBody, getQuery } from 'h3';
 import { NodeHttpHandler } from '@smithy/node-http-handler';
 
+// 检查网络连接状态
+async function checkNetworkConnection() {
+  try {
+    // 尝试连接到Cloudflare的DNS服务器
+    const response = await fetch('https://1.1.1.1', { 
+      method: 'HEAD',
+      signal: AbortSignal.timeout(5000) // 5秒超时
+    });
+    return response.ok;
+  } catch (error) {
+    console.warn('网络连接检查失败:', error);
+    return false;
+  }
+}
+
 // 创建S3客户端
 const createS3Client = (config: {
   accessKeyId: string;
@@ -17,11 +32,25 @@ const createS3Client = (config: {
       secretAccessKey: config.secretKey
     },
     // 增加重试机制
-    maxAttempts: 3,
+    maxAttempts: 5, // 增加到5次尝试
+    retryStrategy: {
+      retryDecider: (error) => {
+        // 决定哪些错误应该重试
+        if (error.name === 'NetworkingError' || error.code === 'ECONNRESET' || error.code === 'TimeoutError') {
+          console.log(`遇到网络错误，将进行重试: ${error.name}, ${error.code}`);
+          return true;
+        }
+        return false;  // 其他错误不重试
+      },
+      delayDecider: (_, attempts) => {
+        // 指数退避策略: 200ms, 400ms, 800ms, 1600ms...
+        return Math.min(1.5 ** attempts * 200, 10000);
+      }
+    },
     // 自定义超时时间
     requestHandler: new NodeHttpHandler({
-      connectionTimeout: 10000, // 连接超时：10秒
-      socketTimeout: 15000 // 套接字超时：15秒
+      connectionTimeout: 20000, // 连接超时：20秒
+      socketTimeout: 30000 // 套接字超时：30秒
     })
   });
 };
@@ -120,6 +149,16 @@ export default defineEventHandler(async (event) => {
         };
       }
       
+      // 先检查网络连接
+      const isNetworkConnected = await checkNetworkConnection();
+      if (!isNetworkConnected) {
+        return {
+          success: false,
+          error: '无法连接到网络。请检查您的网络连接并重试。',
+          networkStatus: 'disconnected'
+        };
+      }
+      
       // 创建S3客户端
       const s3Client = createS3Client({
         accessKeyId: config.accessKeyId,
@@ -148,6 +187,16 @@ export default defineEventHandler(async (event) => {
         return { 
           success: false, 
           error: '配置不完整，请提供所有必要的参数' 
+        };
+      }
+      
+      // 先检查网络连接
+      const isNetworkConnected = await checkNetworkConnection();
+      if (!isNetworkConnected) {
+        return {
+          success: false,
+          error: '无法连接到网络。请检查您的网络连接并重试。',
+          networkStatus: 'disconnected'
         };
       }
       
@@ -416,9 +465,15 @@ export default defineEventHandler(async (event) => {
     
     // 处理特定类型的错误
     if (error.code === 'ECONNRESET') {
+      console.warn('检测到ECONNRESET错误，可能是网络连接问题:', error);
       return {
         success: false,
-        error: '连接被重置 (ECONNRESET)。可能是网络问题、代理拦截或防火墙限制导致。请检查网络设置或尝试使用不同的网络环境。'
+        error: '连接被重置 (ECONNRESET)。可能是网络问题、代理拦截或防火墙限制导致。请检查网络设置、尝试使用不同的网络环境或稍后重试。',
+        errorDetails: {
+          code: error.code,
+          message: error.message,
+          suggestion: '如果问题持续出现，请检查Cloudflare R2的可用性或网络代理设置。'
+        }
       };
     }
     

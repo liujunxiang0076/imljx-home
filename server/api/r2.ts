@@ -110,6 +110,7 @@ const getConfig = async (event: any) => {
     prefix: body.prefix || '',
     fileName: body.fileName || '',
     contentType: body.contentType || '',
+    contentLength: body.contentLength || '',  // 添加contentLength字段
     preview: body.preview || false
   };
 };
@@ -440,7 +441,9 @@ export default defineEventHandler(async (event) => {
         const command = new PutObjectCommand({
           Bucket: config.bucketName,
           Key: config.fileName,
-          ContentType: config.contentType || 'application/octet-stream'
+          ContentType: config.contentType || 'application/octet-stream',
+          // 如果提供了文件大小，将其作为Content-Length
+          ...(config.contentLength ? { ContentLength: parseInt(config.contentLength, 10) } : {})
         });
         
         // 使用重试机制获取签名URL

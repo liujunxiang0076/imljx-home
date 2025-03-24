@@ -822,6 +822,7 @@ const uploadFile = async (options: UploadRequestOptions) => {
           body: JSON.stringify({ 
             fileName,
             contentType: file.type || 'application/octet-stream',
+            contentLength: file.size.toString(),  // 添加文件大小信息
             accessKeyId: r2AccessKeyId.value,
             secretKey: r2SecretKey.value,
             bucketName: r2BucketName.value,
@@ -902,10 +903,14 @@ const uploadFile = async (options: UploadRequestOptions) => {
             xhr.open('PUT', data.uploadUrl);
             xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
             
+            // 添加Content-Length头部以解决长度未知的流警告
+            xhr.setRequestHeader('Content-Length', file.size.toString());
+            
             // 添加CORS相关设置
             xhr.withCredentials = false; // 不发送凭据
             console.log('准备上传到URL:', data.uploadUrl);
             console.log('文件类型:', file.type || 'application/octet-stream');
+            console.log('文件大小:', file.size, '字节');
             
             // 添加错误诊断
             xhr.addEventListener('loadend', function() {

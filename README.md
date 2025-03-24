@@ -11,12 +11,10 @@
 - ⚡ Nuxt 3服务端API集成
 - 📱 响应式移动端适配
 
-![功能截图](/docs/screenshot.png)
 
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FYOUR_USERNAME%2Fimljx-home)
 
 ## 架构设计
-![架构图](/docs/architecture.png)
 
 核心模块：
 - 前端应用层：Nuxt3 + Vue3
@@ -75,9 +73,7 @@ pnpm build
   - 预签名URL支持
   - 文件批量管理
 
-## API文档
-[查看API接口文档](/server/api/README.md)
-
+## API接口
 包含接口：
 - GET /api/bing-image
 - POST /api/r2/upload

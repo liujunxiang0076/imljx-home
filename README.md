@@ -1,8 +1,28 @@
 # imljx-home
 
-个人主页项目，基于Nuxt 3构建。
+个人主页项目，基于Nuxt 3构建。集成二维码生成、云存储管理等核心功能。
+
+## 项目概述
+提供以下核心功能：
+- 🖼️ 必应每日壁纸展示
+- 🔍 多搜索引擎快捷入口
+- 🎨 可视化二维码生成器（支持7种内容格式）
+- ☁️ Cloudflare R2云存储管理
+- ⚡ Nuxt 3服务端API集成
+- 📱 响应式移动端适配
+
+![功能截图](/docs/screenshot.png)
 
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FYOUR_USERNAME%2Fimljx-home)
+
+## 架构设计
+![架构图](/docs/architecture.png)
+
+核心模块：
+- 前端应用层：Nuxt3 + Vue3
+- API服务层：Nitro Server
+- 存储层：Cloudflare R2
+- 工具层：QR生成/压缩工具
 
 ## 技术栈
 
@@ -14,6 +34,23 @@
 - **二维码**: qrcode (v1.5.4)
 - **文件处理**: file-saver (v2.0.5), jszip (v3.10.1)
 - **云存储**: @aws-sdk/client-s3, @aws-sdk/s3-request-presigner
+
+## 部署指南
+
+### 本地开发
+```bash
+pnpm dev
+```
+
+### 生产构建
+```bash
+pnpm build
+```
+
+### Vercel部署
+1. 关联Git仓库
+2. 设置环境变量
+3. 开启自动部署
 
 ## 功能特点
 
@@ -38,7 +75,31 @@
   - 预签名URL支持
   - 文件批量管理
 
+## API文档
+[查看API接口文档](/server/api/README.md)
+
+包含接口：
+- GET /api/bing-image
+- POST /api/r2/upload
+- GET /api/search-suggestions
+
 ## 开发环境
+
+### 环境变量配置
+复制.env.example文件为.env并配置：
+```env
+# Bing壁纸API
+BING_API_KEY=your_key
+
+# R2存储配置
+R2_ACCOUNT_ID=your_account_id
+R2_ACCESS_KEY_ID=your_access_key
+R2_SECRET_ACCESS_KEY=your_secret_key
+R2_BUCKET_NAME=your_bucket
+
+# 前端配置
+BASE_URL=https://your-domain.com
+```
 
 ### 前提条件
 
@@ -184,4 +245,4 @@ POST /api/r2?action=delete
 
 ## 许可证
 
-[MIT](LICENSE) 
+[MIT](LICENSE)

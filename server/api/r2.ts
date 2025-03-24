@@ -455,9 +455,22 @@ export default defineEventHandler(async (event) => {
           }
         );
         
+        // 转换URL以使用我们的代理服务器
+        // 如果在本地开发环境中，使用代理；在生产环境中使用原始URL
+        let proxyUrl = signedUrl;
+        if (process.env.NODE_ENV === 'development') {
+          // 提取R2 URL的路径部分
+          const r2Uri = new URL(signedUrl);
+          const pathWithQuery = r2Uri.pathname + r2Uri.search;
+          
+          // 使用我们的代理路径
+          proxyUrl = `/r2-proxy${pathWithQuery}`;
+          console.log('使用代理URL:', proxyUrl);
+        }
+        
         return {
           success: true,
-          uploadUrl: signedUrl,
+          uploadUrl: proxyUrl,
           fileName: config.fileName,
           expiresIn: 3600
         };
@@ -530,9 +543,22 @@ export default defineEventHandler(async (event) => {
           }
         );
         
+        // 转换URL以使用我们的代理服务器
+        // 如果在本地开发环境中，使用代理；在生产环境中使用原始URL
+        let proxyUrl = signedUrl;
+        if (process.env.NODE_ENV === 'development') {
+          // 提取R2 URL的路径部分
+          const r2Uri = new URL(signedUrl);
+          const pathWithQuery = r2Uri.pathname + r2Uri.search;
+          
+          // 使用我们的代理路径
+          proxyUrl = `/r2-proxy${pathWithQuery}`;
+          console.log('使用代理下载URL:', proxyUrl);
+        }
+        
         return {
           success: true,
-          downloadUrl: signedUrl,
+          downloadUrl: proxyUrl,
           fileName: config.fileName
         };
       } catch (error: any) {

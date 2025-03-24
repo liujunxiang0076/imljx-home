@@ -901,6 +901,20 @@ const uploadFile = async (options: UploadRequestOptions) => {
           try {
             xhr.open('PUT', data.uploadUrl);
             xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+            
+            // 添加CORS相关设置
+            xhr.withCredentials = false; // 不发送凭据
+            console.log('准备上传到URL:', data.uploadUrl);
+            console.log('文件类型:', file.type || 'application/octet-stream');
+            
+            // 添加错误诊断
+            xhr.addEventListener('loadend', function() {
+              console.log('XHR 请求完成状态:', xhr.status);
+              if (xhr.status >= 400) {
+                console.error('服务器响应:', xhr.responseText || '无响应数据');
+              }
+            });
+            
             xhr.send(file);
           } catch (e) {
             console.error('发送XHR请求时发生错误:', e);

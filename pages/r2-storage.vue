@@ -794,66 +794,138 @@ const uploadFile = async (options: UploadRequestOptions) => {
       fileName = `${currentPath.value}/${fileName}`;
     }
     
-    console.log(`上传文件: ${fileName}, 类型: ${file.type}, 大小: ${formatFileSize(file.size)}`);
+    console.log(`上传文件: ${fileName}, 类型: ${file.type}, 大小: ${file.size} 字节`);
+    
+    // 检查文件大小，提供额外的大文件警告
+    const isLargeFile = file.size > 10 * 1024 * 1024; // 大于10MB视为大文件
+    
+    if (isLargeFile) {
+      uploadStatusText.value = '准备上传大文件，这可能需要更长时间...';
+      console.log(`检测到大文件上传: ${file.size} 字节 (${file.size / (1024 * 1024)} MB)`);
+    }
     
     // 获取预签名上传URL
     uploadStatusText.value = '获取上传链接...';
-    const response = await fetch('/api/r2?action=getUploadUrl', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ 
-        fileName,
-        contentType: file.type || 'application/octet-stream',
-        accessKeyId: r2AccessKeyId.value,
-        secretKey: r2SecretKey.value,
-        bucketName: r2BucketName.value,
-        endpoint: r2Endpoint.value
-      }),
-    });
     
-    const data = await response.json();
+    // 添加获取预签名URL的重试逻辑
+    let data;
+    let retryCount = 0;
+    const maxRetries = 3;
     
-    if (!data.success) {
-      throw new Error(data.error || '获取上传链接失败');
+    while (retryCount < maxRetries) {
+      try {
+        const response = await fetch('/api/r2?action=getUploadUrl', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            fileName,
+            contentType: file.type || 'application/octet-stream',
+            accessKeyId: r2AccessKeyId.value,
+            secretKey: r2SecretKey.value,
+            bucketName: r2BucketName.value,
+            endpoint: r2Endpoint.value
+          }),
+        });
+        
+        data = await response.json();
+        
+        if (data.success) {
+          break; // 成功获取URL，跳出循环
+        } else {
+          throw new Error(data.error || '获取上传链接失败');
+        }
+      } catch (error: any) {
+        retryCount++;
+        if (retryCount >= maxRetries) {
+          throw new Error(`获取上传链接失败(已重试${maxRetries}次): ${error.message}`);
+        }
+        
+        // 等待一段时间再重试
+        const delay = 1000 * Math.pow(1.5, retryCount); // 指数退避: 1.5秒, 2.25秒, 3.37秒...
+        uploadStatusText.value = `获取链接失败，等待重试 (${retryCount}/${maxRetries})...`;
+        await new Promise(resolve => setTimeout(resolve, delay));
+        uploadStatusText.value = `正在重试获取上传链接 (${retryCount}/${maxRetries})...`;
+      }
+    }
+    
+    if (!data || !data.success) {
+      throw new Error('获取上传链接失败，请检查网络连接和R2配置');
     }
     
     // 上传到预签名URL
     uploadStatusText.value = '正在上传...';
     
-    // 使用XMLHttpRequest以支持进度监控
-    await new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      
-      xhr.upload.addEventListener('progress', (event) => {
-        if (event.lengthComputable) {
-          const percentComplete = Math.round((event.loaded / event.total) * 100);
-          uploadProgress.value = percentComplete;
-          uploadStatusText.value = `上传中... ${percentComplete}%`;
+    // 添加文件上传的重试逻辑
+    retryCount = 0;
+    
+    while (retryCount < maxRetries) {
+      try {
+        // 使用XMLHttpRequest以支持进度监控
+        await new Promise((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          
+          // 添加超时设置
+          xhr.timeout = 60000; // 60秒超时
+          
+          xhr.upload.addEventListener('progress', (event) => {
+            if (event.lengthComputable) {
+              const percentComplete = Math.round((event.loaded / event.total) * 100);
+              uploadProgress.value = percentComplete;
+              uploadStatusText.value = `上传中... ${percentComplete}%`;
+            }
+          });
+          
+          xhr.addEventListener('load', () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              resolve(xhr.response);
+            } else {
+              reject(new Error(`上传失败: HTTP ${xhr.status} ${xhr.statusText}`));
+            }
+          });
+          
+          xhr.addEventListener('error', (e) => {
+            console.error('XHR错误事件:', e);
+            reject(new Error('上传过程中发生网络错误，请检查网络连接'));
+          });
+          
+          xhr.addEventListener('abort', () => {
+            reject(new Error('上传已取消'));
+          });
+          
+          xhr.addEventListener('timeout', () => {
+            reject(new Error('上传超时，请检查网络连接速度'));
+          });
+          
+          try {
+            xhr.open('PUT', data.uploadUrl);
+            xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+            xhr.send(file);
+          } catch (e) {
+            console.error('发送XHR请求时发生错误:', e);
+            reject(new Error(`发起请求失败: ${e instanceof Error ? e.message : String(e)}`));
+          }
+        });
+        
+        // 如果执行到这里，说明上传成功，跳出循环
+        break;
+      } catch (error: any) {
+        console.error(`上传失败 (尝试 ${retryCount + 1}/${maxRetries}):`, error);
+        retryCount++;
+        
+        if (retryCount >= maxRetries) {
+          throw error; // 重试次数用完，抛出最后一个错误
         }
-      });
-      
-      xhr.addEventListener('load', () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          resolve(xhr.response);
-        } else {
-          reject(new Error(`上传失败: ${xhr.status} ${xhr.statusText}`));
-        }
-      });
-      
-      xhr.addEventListener('error', () => {
-        reject(new Error('上传过程中发生网络错误'));
-      });
-      
-      xhr.addEventListener('abort', () => {
-        reject(new Error('上传已取消'));
-      });
-      
-      xhr.open('PUT', data.uploadUrl);
-      xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
-      xhr.send(file);
-    });
+        
+        // 等待一段时间后重试
+        const delay = 2000 * Math.pow(1.5, retryCount); // 指数退避
+        uploadStatusText.value = `上传失败，将在${Math.round(delay/1000)}秒后重试 (${retryCount}/${maxRetries})...`;
+        await new Promise(resolve => setTimeout(resolve, delay));
+        uploadStatusText.value = `正在重试上传 (${retryCount}/${maxRetries})...`;
+        uploadProgress.value = 0; // 重置进度
+      }
+    }
     
     // 上传成功
     uploadProgress.value = 100;

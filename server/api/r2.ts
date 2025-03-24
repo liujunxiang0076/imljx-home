@@ -5,11 +5,13 @@ import { NodeHttpHandler } from '@smithy/node-http-handler';
 
 // 检查网络连接状态
 async function checkNetworkConnection() {
-  // 多个可以尝试连接的目标
+  // 多个可以尝试连接的目标，优先使用国内可访问的网站
   const targets = [
-    'https://1.1.1.1',
     'https://www.baidu.com',
-    'https://cloudflare.com'
+    'https://www.qq.com',
+    'https://www.163.com',
+    'https://cloudflare.com',
+    'https://1.1.1.1'
   ];
   
   // 增加超时时间
@@ -18,7 +20,7 @@ async function checkNetworkConnection() {
   // 尝试连接多个目标，只要有一个成功即可
   for (const target of targets) {
     try {
-      console.log(`尝试连接到: ${target}`);
+      console.log(`检查网络连接: ${target}`);
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), timeout);
       
@@ -30,16 +32,18 @@ async function checkNetworkConnection() {
       clearTimeout(timeoutId);
       
       if (response.ok) {
-        console.log(`成功连接到: ${target}`);
+        console.log(`网络连接正常: ${target}`);
         return true;
       }
     } catch (error) {
-      console.warn(`连接到 ${target} 失败:`, error instanceof Error ? error.message : String(error));
+      // 不再记录每个连接失败的警告，改为仅记录信息
+      console.log(`连接到 ${target} 失败: ${error instanceof Error ? error.message : String(error)}`);
       // 继续尝试下一个目标
     }
   }
   
-  console.warn('所有网络连接测试都失败了');
+  // 只有当所有目标都尝试失败时才显示警告
+  console.warn('所有网络连接测试都失败了，无法访问网络');
   return false;
 }
 
@@ -116,12 +120,14 @@ async function executeWithRetry<T>(
     maxRetries?: number;
     retryDelay?: number;
     operationName?: string;
+    verbose?: boolean;
   } = {}
 ): Promise<T> {
   const {
     maxRetries = 3,
     retryDelay = 1000,
-    operationName = '操作'
+    operationName = '操作',
+    verbose = false
   } = options;
   
   let lastError: Error | null = null;
@@ -134,9 +140,15 @@ async function executeWithRetry<T>(
       lastError = error;
       
       // 记录错误和重试信息
-      console.warn(
-        `${operationName}失败 (尝试 ${attempt}/${maxRetries}): ${error.message || error}`
-      );
+      if (verbose || attempt === maxRetries) {
+        console.warn(
+          `${operationName}失败 (尝试 ${attempt}/${maxRetries}): ${error.message || error}`
+        );
+      } else {
+        console.log(
+          `${operationName}失败 (尝试 ${attempt}/${maxRetries}): ${error.message || error}`
+        );
+      }
       
       // 检查是否是网络相关错误
       const isNetworkError = 
@@ -256,7 +268,8 @@ export default defineEventHandler(async (event) => {
           },
           {
             maxRetries: 3,
-            operationName: '测试连接'
+            operationName: '测试连接',
+            verbose: true
           }
         );
         
@@ -404,26 +417,62 @@ export default defineEventHandler(async (event) => {
         };
       }
       
-      // 创建S3客户端
-      const s3Client = createS3Client({
-        accessKeyId: config.accessKeyId,
-        secretKey: config.secretKey,
-        endpoint: config.endpoint
-      });
-      
-      const command = new PutObjectCommand({
-        Bucket: config.bucketName,
-        Key: config.fileName,
-        ContentType: config.contentType || 'application/octet-stream'
-      });
-      
-      const signedUrl = await getSignedUrl(s3Client, command, { expiresIn: 3600 });
-      
-      return {
-        success: true,
-        uploadUrl: signedUrl,
-        fileName: config.fileName
-      };
+      try {
+        // 先检查网络连接
+        const isNetworkConnected = await checkNetworkConnection();
+        if (!isNetworkConnected) {
+          return {
+            success: false,
+            error: '无法连接到网络。请检查您的网络连接并重试。',
+            networkStatus: 'disconnected'
+          };
+        }
+        
+        // 创建S3客户端
+        const s3Client = createS3Client({
+          accessKeyId: config.accessKeyId,
+          secretKey: config.secretKey,
+          endpoint: config.endpoint
+        });
+        
+        // 使用我们的重试函数来获取预签名URL
+        const command = new PutObjectCommand({
+          Bucket: config.bucketName,
+          Key: config.fileName,
+          ContentType: config.contentType || 'application/octet-stream'
+        });
+        
+        // 使用重试机制获取签名URL
+        const signedUrl = await executeWithRetry(
+          async () => {
+            return await getSignedUrl(s3Client, command, { 
+              expiresIn: 3600 // 1小时过期
+            });
+          },
+          {
+            maxRetries: 3,
+            operationName: '获取上传URL'
+          }
+        );
+        
+        return {
+          success: true,
+          uploadUrl: signedUrl,
+          fileName: config.fileName,
+          expiresIn: 3600
+        };
+      } catch (error: any) {
+        console.error('获取上传URL失败:', error);
+        return {
+          success: false,
+          error: `获取上传URL失败: ${error.message || '未知错误'}`,
+          errorCode: error.code || error.name || 'UNKNOWN',
+          details: {
+            fileName: config.fileName,
+            contentType: config.contentType
+          }
+        };
+      }
     }
     
     // 获取预签名下载URL
@@ -443,27 +492,57 @@ export default defineEventHandler(async (event) => {
         };
       }
       
-      // 创建S3客户端
-      const s3Client = createS3Client({
-        accessKeyId: config.accessKeyId,
-        secretKey: config.secretKey,
-        endpoint: config.endpoint
-      });
-      
-      const command = new GetObjectCommand({
-        Bucket: config.bucketName,
-        Key: config.fileName,
-        // 添加Content-Disposition以确保正确的文件名
-        ResponseContentDisposition: `attachment; filename="${encodeURIComponent(config.fileName.split('/').pop() || config.fileName)}"`
-      });
-      
-      const signedUrl = await getSignedUrl(s3Client, command, { expiresIn: 3600 });
-      
-      return {
-        success: true,
-        downloadUrl: signedUrl,
-        fileName: config.fileName
-      };
+      try {
+        // 先检查网络连接
+        const isNetworkConnected = await checkNetworkConnection();
+        if (!isNetworkConnected) {
+          return {
+            success: false,
+            error: '无法连接到网络。请检查您的网络连接并重试。',
+            networkStatus: 'disconnected'
+          };
+        }
+        
+        // 创建S3客户端
+        const s3Client = createS3Client({
+          accessKeyId: config.accessKeyId,
+          secretKey: config.secretKey,
+          endpoint: config.endpoint
+        });
+        
+        const command = new GetObjectCommand({
+          Bucket: config.bucketName,
+          Key: config.fileName,
+          // 添加Content-Disposition以确保正确的文件名
+          ResponseContentDisposition: `attachment; filename="${encodeURIComponent(config.fileName.split('/').pop() || config.fileName)}"`
+        });
+        
+        // 使用重试机制获取下载URL
+        const signedUrl = await executeWithRetry(
+          async () => {
+            return await getSignedUrl(s3Client, command, { 
+              expiresIn: 3600 // 1小时过期
+            });
+          },
+          {
+            maxRetries: 3,
+            operationName: '获取下载URL'
+          }
+        );
+        
+        return {
+          success: true,
+          downloadUrl: signedUrl,
+          fileName: config.fileName
+        };
+      } catch (error: any) {
+        console.error('获取下载URL失败:', error);
+        return {
+          success: false,
+          error: `获取下载URL失败: ${error.message || '未知错误'}`,
+          errorCode: error.code || error.name || 'UNKNOWN'
+        };
+      }
     }
     
     // 删除对象

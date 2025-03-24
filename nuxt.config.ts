@@ -47,13 +47,8 @@ export default defineNuxtConfig({
     externals: {
       inline: ['element-plus']
     },
-    // 添加代理服务器配置
-    routeRules: {
-      // 代理到Cloudflare R2的请求，解决CORS问题
-      '/r2-proxy/**': {
-        proxy: { to: process.env.CLOUDFLARE_R2_ENDPOINT?.replace(/\/+$/, '') || 'https://55c5839cf9e673e89e50b4b980152fc9.r2.cloudflarestorage.com' }
-      }
-    }
+    // 提高代理请求的超时时间
+    timing: true
   },
 
   components: {

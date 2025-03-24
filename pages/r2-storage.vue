@@ -1153,7 +1153,8 @@ const previewImage = async (fileName: string) => {
         accessKeyId: r2AccessKeyId.value,
         secretKey: r2SecretKey.value,
         bucketName: r2BucketName.value,
-        endpoint: r2Endpoint.value
+        endpoint: r2Endpoint.value,
+        preview: true // 明确指定这是一个预览请求
       }),
     });
     
@@ -1174,7 +1175,8 @@ const previewImage = async (fileName: string) => {
               accessKeyId: r2AccessKeyId.value,
               secretKey: r2SecretKey.value,
               bucketName: r2BucketName.value,
-              endpoint: r2Endpoint.value
+              endpoint: r2Endpoint.value,
+              preview: true // 明确指定这是一个预览请求
             }),
           });
           

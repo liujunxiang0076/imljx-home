@@ -109,7 +109,8 @@ const getConfig = async (event: any) => {
     endpoint: body.endpoint || envConfig.endpoint,
     prefix: body.prefix || '',
     fileName: body.fileName || '',
-    contentType: body.contentType || ''
+    contentType: body.contentType || '',
+    preview: body.preview || false
   };
 };
 
@@ -523,12 +524,37 @@ export default defineEventHandler(async (event) => {
           endpoint: config.endpoint
         });
         
+        // 检查是否是图片文件
+        const isImageFile = /\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i.test(config.fileName);
+        // 确定Content-Disposition
+        const disposition = isImageFile && config.preview === true 
+          ? 'inline' // 图片预览使用inline
+          : 'attachment'; // 其他文件或明确下载时使用attachment
+        
         const command = new GetObjectCommand({
           Bucket: config.bucketName,
           Key: config.fileName,
-          // 添加Content-Disposition以确保正确的文件名
-          ResponseContentDisposition: `attachment; filename="${encodeURIComponent(config.fileName.split('/').pop() || config.fileName)}"`
+          // 添加Content-Disposition以确保正确的文件名和处理方式
+          ResponseContentDisposition: `${disposition}; filename="${encodeURIComponent(config.fileName.split('/').pop() || config.fileName)}"`
         });
+        
+        // 如果是图片且是预览模式，添加适当的Content-Type
+        if (isImageFile && config.preview === true) {
+          const extension = config.fileName.split('.').pop()?.toLowerCase() || '';
+          const mimeTypes: Record<string, string> = {
+            'jpg': 'image/jpeg',
+            'jpeg': 'image/jpeg',
+            'png': 'image/png',
+            'gif': 'image/gif',
+            'webp': 'image/webp',
+            'svg': 'image/svg+xml',
+            'bmp': 'image/bmp'
+          };
+          
+          if (extension && mimeTypes[extension]) {
+            command.input.ResponseContentType = mimeTypes[extension];
+          }
+        }
         
         // 使用重试机制获取下载URL
         const signedUrl = await executeWithRetry(
@@ -553,7 +579,18 @@ export default defineEventHandler(async (event) => {
           
           // 使用我们的代理路径
           proxyUrl = `/r2-proxy${pathWithQuery}`;
-          console.log('使用代理下载URL:', proxyUrl);
+          
+          // 如果是预览请求，确保添加preview查询参数
+          if (config.preview === true) {
+            if (proxyUrl.includes('?')) {
+              proxyUrl += '&preview=true';
+            } else {
+              proxyUrl += '?preview=true';
+            }
+            console.log('使用图片预览URL:', proxyUrl);
+          } else {
+            console.log('使用代理下载URL:', proxyUrl);
+          }
         }
         
         return {

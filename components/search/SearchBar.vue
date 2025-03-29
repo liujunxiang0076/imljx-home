@@ -547,11 +547,7 @@ watch([isExpanded, showSuggestions], () => {
 
 <style lang="scss" scoped>
 // 变量定义
-$search-bar-height: 3rem;
-$search-bar-radius: 2rem;
-$search-bar-width: 350px;
-$search-bar-expanded-width: 750px;
-$transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
+// 已经移到全局配置中
 
 // Mixins
 @mixin flex-center {

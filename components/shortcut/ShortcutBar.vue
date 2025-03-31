@@ -76,11 +76,6 @@ const shortcuts = ref([
     iconName: 'Document'
   },
   { 
-    name: '云存储', 
-    path: '/r2-storage', 
-    iconName: 'UploadFilled'
-  },
-  { 
     name: '邮件', 
     path: 'https://wx.mail.qq.com/', 
     iconName: 'Message'

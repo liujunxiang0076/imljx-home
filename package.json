@@ -35,6 +35,7 @@
     "@element-plus/nuxt": "^1.1.1",
     "@types/file-saver": "^2.0.7",
     "@types/jszip": "^3.4.1",
+    "nuxt-windicss": "^3.0.1",
     "sass": "^1.86.0"
   }
 }

@@ -1,13 +1,12 @@
 # imljx-home
 
-个人主页项目，基于Nuxt 3构建。集成二维码生成、云存储管理等核心功能。
+个人主页项目，基于Nuxt 3构建。集成二维码生成等核心功能。
 
 ## 项目概述
 提供以下核心功能：
 - 🖼️ 必应每日壁纸展示
 - 🔍 多搜索引擎快捷入口
 - 🎨 可视化二维码生成器（支持7种内容格式）
-- ☁️ Cloudflare R2云存储管理
 - ⚡ Nuxt 3服务端API集成
 - 📱 响应式移动端适配
 
@@ -19,7 +18,6 @@
 核心模块：
 - 前端应用层：Nuxt3 + Vue3
 - API服务层：Nitro Server
-- 存储层：Cloudflare R2
 - 工具层：QR生成/压缩工具
 
 ## 技术栈
@@ -31,7 +29,6 @@
 - **HTTP**: h3 (v1.15.1)
 - **二维码**: qrcode (v1.5.4)
 - **文件处理**: file-saver (v2.0.5), jszip (v3.10.1)
-- **云存储**: @aws-sdk/client-s3, @aws-sdk/s3-request-presigner
 
 ## 部署指南
 
@@ -66,17 +63,10 @@ pnpm build
   - 自动根据内容命名下载文件
   - 文本过长时提供悬停提示显示完整内容
   - 批量下载时自动压缩为ZIP文件
-- Cloudflare R2云存储
-  - 文件上传与下载
-  - 文件预览与管理
-  - 上传进度显示
-  - 预签名URL支持
-  - 文件批量管理
 
 ## API接口
 包含接口：
 - GET /api/bing-image
-- POST /api/r2/upload
 - GET /api/search-suggestions
 
 ## 开发环境
@@ -86,12 +76,6 @@ pnpm build
 ```env
 # Bing壁纸API
 BING_API_KEY=your_key
-
-# R2存储配置
-R2_ACCOUNT_ID=your_account_id
-R2_ACCESS_KEY_ID=your_access_key
-R2_SECRET_ACCESS_KEY=your_secret_key
-R2_BUCKET_NAME=your_bucket
 
 # 前端配置
 BASE_URL=https://your-domain.com
@@ -173,71 +157,6 @@ pnpm build
   - PNG和SVG格式导出
   - 批量生成和下载（自动打包为ZIP）
   - 智能文件命名：根据内容自动生成文件名
-
-### Cloudflare R2存储
-
-`pages/r2-storage.vue` 提供与Cloudflare R2对象存储的集成：
-
-- 文件管理
-  - 拖拽上传文件
-  - 实时进度条显示
-  - 文件列表展示（名称、大小、修改时间）
-  - 文件删除功能
-
-- 安全特性
-  - 使用预签名URL进行上传和下载
-  - 自动过期的临时访问链接
-  - 服务端API安全控制
-
-- 配置界面
-  - 可视化配置R2连接信息
-  - 本地存储配置（无需修改环境变量）
-  - 配置测试功能
-  - 安全密码输入框
-
-- 使用方法
-  - 访问`/r2-storage`页面
-  - 点击"设置配置"按钮
-  - 输入R2凭证信息
-  - 测试连接成功后开始使用
-
-## API
-
-### 必应每日壁纸
-
-```typescript
-GET /api/bing-image
-```
-
-返回必应每日壁纸信息，包含：
-- 图片URL
-- 版权信息
-- 标题
-
-### Cloudflare R2 API
-
-```typescript
-GET /api/r2?action=list
-```
-列出R2存储桶中的所有对象
-
-```typescript
-POST /api/r2?action=getUploadUrl
-// body: { fileName: string, contentType: string }
-```
-获取文件上传预签名URL
-
-```typescript
-POST /api/r2?action=getDownloadUrl
-// body: { fileName: string }
-```
-获取文件下载预签名URL
-
-```typescript
-POST /api/r2?action=delete
-// body: { fileName: string }
-```
-删除指定的文件
 
 ## 许可证
 

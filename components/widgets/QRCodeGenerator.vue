@@ -58,7 +58,7 @@
           <el-input
             v-model="form.url"
             placeholder="请输入网址"
-            @input="generateQRCode"
+            @input="debouncedGenerateQRCode"
           ></el-input>
         </el-form-item>
       </div>
@@ -69,14 +69,14 @@
           <el-input
             v-model="form.email.address"
             placeholder="请输入邮箱地址"
-            @input="generateQRCode"
+            @input="debouncedGenerateQRCode"
           ></el-input>
         </el-form-item>
         <el-form-item label="主题">
           <el-input
             v-model="form.email.subject"
             placeholder="请输入邮件主题"
-            @input="generateQRCode"
+            @input="debouncedGenerateQRCode"
           ></el-input>
         </el-form-item>
         <el-form-item label="内容">
@@ -84,7 +84,7 @@
             v-model="form.email.body"
             type="textarea"
             placeholder="请输入邮件内容"
-            @input="generateQRCode"
+            @input="debouncedGenerateQRCode"
           ></el-input>
         </el-form-item>
       </div>
@@ -95,7 +95,7 @@
           <el-input
             v-model="form.phone"
             placeholder="请输入电话号码"
-            @input="generateQRCode"
+            @input="debouncedGenerateQRCode"
           ></el-input>
         </el-form-item>
       </div>
@@ -106,7 +106,7 @@
           <el-input
             v-model="form.sms.number"
             placeholder="请输入手机号码"
-            @input="generateQRCode"
+            @input="debouncedGenerateQRCode"
           ></el-input>
         </el-form-item>
         <el-form-item label="短信内容">
@@ -114,7 +114,7 @@
             v-model="form.sms.message"
             type="textarea"
             placeholder="请输入短信内容"
-            @input="generateQRCode"
+            @input="debouncedGenerateQRCode"
           ></el-input>
         </el-form-item>
       </div>
@@ -125,14 +125,14 @@
           <el-input
             v-model="form.wifi.ssid"
             placeholder="请输入WiFi名称"
-            @input="generateQRCode"
+            @input="debouncedGenerateQRCode"
           ></el-input>
         </el-form-item>
         <el-form-item label="加密类型">
           <el-select
             v-model="form.wifi.encryption"
             placeholder="请选择加密类型"
-            @change="generateQRCode"
+            @change="debouncedGenerateQRCode"
           >
             <el-option label="无" value="nopass"></el-option>
             <el-option label="WPA/WPA2" value="WPA"></el-option>
@@ -143,13 +143,13 @@
           <el-input
             v-model="form.wifi.password"
             placeholder="请输入WiFi密码"
-            @input="generateQRCode"
+            @input="debouncedGenerateQRCode"
           ></el-input>
         </el-form-item>
         <el-form-item label="隐藏网络">
           <el-switch
             v-model="form.wifi.hidden"
-            @change="generateQRCode"
+            @change="debouncedGenerateQRCode"
           ></el-switch>
         </el-form-item>
       </div>
@@ -160,49 +160,49 @@
           <el-input
             v-model="form.vcard.name"
             placeholder="请输入姓名"
-            @input="generateQRCode"
+            @input="debouncedGenerateQRCode"
           ></el-input>
         </el-form-item>
         <el-form-item label="电话">
           <el-input
             v-model="form.vcard.phone"
             placeholder="请输入电话"
-            @input="generateQRCode"
+            @input="debouncedGenerateQRCode"
           ></el-input>
         </el-form-item>
         <el-form-item label="邮箱">
           <el-input
             v-model="form.vcard.email"
             placeholder="请输入邮箱"
-            @input="generateQRCode"
+            @input="debouncedGenerateQRCode"
           ></el-input>
         </el-form-item>
         <el-form-item label="公司">
           <el-input
             v-model="form.vcard.company"
             placeholder="请输入公司"
-            @input="generateQRCode"
+            @input="debouncedGenerateQRCode"
           ></el-input>
         </el-form-item>
         <el-form-item label="职位">
           <el-input
             v-model="form.vcard.title"
             placeholder="请输入职位"
-            @input="generateQRCode"
+            @input="debouncedGenerateQRCode"
           ></el-input>
         </el-form-item>
         <el-form-item label="网址">
           <el-input
             v-model="form.vcard.url"
             placeholder="请输入网址"
-            @input="generateQRCode"
+            @input="debouncedGenerateQRCode"
           ></el-input>
         </el-form-item>
         <el-form-item label="地址">
           <el-input
             v-model="form.vcard.address"
             placeholder="请输入地址"
-            @input="generateQRCode"
+            @input="debouncedGenerateQRCode"
           ></el-input>
         </el-form-item>
       </div>
@@ -216,7 +216,7 @@
                 <span class="color-label">前景</span>
                 <el-color-picker
                   v-model="form.foreground"
-                  @change="generateQRCode"
+                  @change="debouncedGenerateQRCode"
                   size="small"
                 ></el-color-picker>
               </div>
@@ -224,7 +224,7 @@
                 <span class="color-label">背景</span>
                 <el-color-picker
                   v-model="form.background"
-                  @change="generateQRCode"
+                  @change="debouncedGenerateQRCode"
                   size="small"
                 ></el-color-picker>
               </div>
@@ -238,7 +238,7 @@
                 <el-select
                   v-model="form.errorCorrectionLevel"
                   placeholder="请选择级别"
-                  @change="generateQRCode"
+                  @change="debouncedGenerateQRCode"
                   style="width: 100%"
                 >
                   <el-option label="低 (L)" value="L"></el-option>
@@ -253,7 +253,7 @@
                 <el-select
                   v-model="form.size"
                   placeholder="请选择尺寸"
-                  @change="generateQRCode"
+                  @change="debouncedGenerateQRCode"
                   style="width: 100%"
                 >
                   <el-option label="小 (150px)" :value="150"></el-option>
@@ -318,10 +318,31 @@ import { ArrowDown, Download, Document } from '@element-plus/icons-vue'
 import JSZip from 'jszip'
 import { ElMessage, ElLoading } from 'element-plus'
 
+// 添加防抖函数
+const debounce = (fn, delay) => {
+  let timer
+  return function(...args) {
+    clearTimeout(timer)
+    timer = setTimeout(() => {
+      fn.apply(this, args)
+    }, delay)
+  }
+}
+
+// 添加深度比较函数
+const isEqual = (obj1, obj2) => {
+  return JSON.stringify(obj1) === JSON.stringify(obj2)
+}
+
 const qrcodeRef = ref(null)
 const canvas = ref(null)
 const isContentValid = ref(false)
 const selectedTagIndex = ref(-1)
+const isGenerating = ref(false) // 添加生成状态标志
+
+// 用于缓存的变量
+let lastContent = ''
+let lastOptions = null
 
 // 标签相关
 const tags = ref([])
@@ -371,7 +392,7 @@ const removeTag = (index) => {
 // 选择标签
 const selectTag = (index) => {
   selectedTagIndex.value = index
-  generateQRCode()
+  debouncedGenerateQRCode()
 }
 
 // 编辑标签
@@ -526,8 +547,11 @@ const validateContent = () => {
   return isContentValid.value ? content : '';
 }
 
-// 生成二维码
+// 生成二维码，添加防抖和缓存机制
 const generateQRCode = async () => {
+  // 如果正在生成，不重复执行
+  if (isGenerating.value) return
+
   const content = validateContent()
   if (!content) {
     // 如果内容无效，清空二维码
@@ -538,29 +562,40 @@ const generateQRCode = async () => {
     return;
   }
 
-  try {
-    // 计算适合的QR码尺寸
-    const padding = window.innerWidth <= 768 ? 32 : 80
-    const containerWidth = Math.min(window.innerWidth - padding, 600)
-    const optimalSize = Math.min(form.size, containerWidth)
+  // 计算适合的QR码尺寸
+  const padding = window.innerWidth <= 768 ? 32 : 80
+  const containerWidth = Math.min(window.innerWidth - padding, 600)
+  const optimalSize = Math.min(form.size, containerWidth)
 
-    const options = {
-      errorCorrectionLevel: form.errorCorrectionLevel,
-      margin: 2, // 减少边距
-      width: optimalSize,
-      color: {
-        dark: form.foreground,
-        light: form.background
-      }
+  const options = {
+    errorCorrectionLevel: form.errorCorrectionLevel,
+    margin: 2, // 减少边距
+    width: optimalSize,
+    color: {
+      dark: form.foreground,
+      light: form.background
     }
+  }
+
+  // 检查内容和选项是否与上次相同，如果相同则不重新生成
+  if (content === lastContent && isEqual(options, lastOptions)) {
+    return
+  }
+
+  // 更新缓存
+  lastContent = content
+  lastOptions = JSON.parse(JSON.stringify(options))
+
+  try {
+    isGenerating.value = true // 设置生成状态
 
     if (qrcodeRef.value) {
-      // 清空容器
-      qrcodeRef.value.innerHTML = ''
-      
-      // 创建Canvas元素
-      canvas.value = document.createElement('canvas')
-      qrcodeRef.value.appendChild(canvas.value)
+      // 仅当Canvas不存在时才创建新的
+      if (!canvas.value) {
+        canvas.value = document.createElement('canvas')
+        qrcodeRef.value.innerHTML = ''
+        qrcodeRef.value.appendChild(canvas.value)
+      }
       
       // 生成QR码，使用 Promise 并添加超时处理
       await new Promise((resolve, reject) => {
@@ -574,39 +609,55 @@ const generateQRCode = async () => {
           else resolve()
         })
       })
-      
-      // 确保页面可滚动到底部
-      setTimeout(() => {
-        window.dispatchEvent(new Event('resize'))
-      }, 100)
     }
   } catch (error) {
     console.error('生成二维码时出错：', error)
     // 显示错误提示
     ElMessage.error('生成二维码失败，请稍后重试')
+  } finally {
+    isGenerating.value = false // 重置生成状态
   }
 }
 
-// 监听窗口大小变化，重新生成二维码
-const handleResize = () => {
-  generateQRCode()
-}
+// 创建防抖版本的生成函数
+const debouncedGenerateQRCode = debounce(generateQRCode, 300)
 
-// 修改观察器，监听表单内容变化
+// 修改窗口大小处理函数，使用防抖
+const handleResize = debounce(() => {
+  // 只有当窗口尺寸变化超过一定阈值才重新生成
+  const currentWidth = window.innerWidth
+  if (Math.abs(currentWidth - lastWindowWidth) > 50) {
+    lastWindowWidth = currentWidth
+    generateQRCode()
+  }
+}, 200)
+
+// 记录上一次窗口宽度
+let lastWindowWidth = window.innerWidth
+
+// 优化观察器，减少不必要的渲染并添加防抖
 watch(() => [
-  form.contentType, 
-  selectedTagIndex.value,
-  form.url,
-  form.email.address,
-  form.phone,
-  form.sms.number,
-  form.wifi.ssid,
-  form.vcard.name
+  form.contentType,
+  selectedTagIndex.value
 ], () => {
-  generateQRCode();
+  debouncedGenerateQRCode()
 }, { immediate: true })
 
-watch(() => form.contentType, generateQRCode)
+// 深度监听表单变化，使用防抖
+watch(() => ({
+  url: form.url,
+  email: { ...form.email },
+  phone: form.phone,
+  sms: { ...form.sms },
+  wifi: { ...form.wifi },
+  vcard: { ...form.vcard },
+  foreground: form.foreground,
+  background: form.background,
+  errorCorrectionLevel: form.errorCorrectionLevel,
+  size: form.size
+}), () => {
+  debouncedGenerateQRCode()
+}, { deep: true })
 
 // 生成安全的文件名
 const getSafeFileName = (text, maxLength = 50) => {
@@ -781,8 +832,12 @@ onMounted(() => {
     }
   }
   
+  // 初始生成二维码
   generateQRCode()
+  
+  // 添加带防抖的resize监听器
   window.addEventListener('resize', handleResize)
+  lastWindowWidth = window.innerWidth
 })
 
 // 组件卸载时移除事件监听

@@ -92,11 +92,13 @@
           @input="handleInput"
           @focus="handleFocus"
           @blur="handleBlur"
+          @keydown="handleInputKeyDown"
           :class="{ 'engine-name-transition': engineNameTransition }"
+          ref="searchInputRef"
         />
         <!-- 搜索按钮 -->
         <transition name="fade-slide">
-          <button class="search-btn" @click="search" v-if="isExpanded">
+          <button class="search-btn" @click="search" v-if="isExpanded" tabindex="-1">
             <MagnifyingGlassIcon class="search-icon" aria-hidden="true" />
           </button>
         </transition>
@@ -373,31 +375,33 @@ const highlightMatch = (text) => {
   return text.replace(regex, '<strong class="highlight">$1</strong>')
 }
 
-// 键盘导航搜索建议
-const handleKeyDown = (e) => {
-  if (!showSuggestions.value || suggestions.value.length === 0) return
-  
-  // 向下箭头
-  if (e.key === 'ArrowDown') {
-    e.preventDefault()
-    highlightIndex.value = (highlightIndex.value + 1) % suggestions.value.length
-  }
-  
-  // 向上箭头
-  else if (e.key === 'ArrowUp') {
-    e.preventDefault()
-    highlightIndex.value = highlightIndex.value <= 0 ? suggestions.value.length - 1 : highlightIndex.value - 1
-  }
-  
-  // 回车键
-  else if (e.key === 'Enter' && highlightIndex.value >= 0) {
-    e.preventDefault()
-    selectSuggestion(suggestions.value[highlightIndex.value])
-  }
-  
-  // Esc键
-  else if (e.key === 'Escape') {
-    showSuggestions.value = false
+// 输入框的键盘事件处理
+const handleInputKeyDown = (e) => {
+  // 搜索建议导航逻辑...
+  if (showSuggestions.value && suggestions.value.length > 0) {
+    // 向下箭头
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      highlightIndex.value = (highlightIndex.value + 1) % suggestions.value.length
+    }
+    
+    // 向上箭头
+    else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      highlightIndex.value = highlightIndex.value <= 0 ? suggestions.value.length - 1 : highlightIndex.value - 1
+    }
+    
+    // 回车键
+    else if (e.key === 'Enter' && highlightIndex.value >= 0) {
+      e.preventDefault()
+      selectSuggestion(suggestions.value[highlightIndex.value])
+    }
+    
+    // Esc键
+    else if (e.key === 'Escape') {
+      e.preventDefault()
+      showSuggestions.value = false
+    }
   }
 }
 
@@ -470,6 +474,28 @@ const fetchBingImage = async () => {
   }
 }
 
+// 全局键盘事件处理
+const handleGlobalKeyDown = (e) => {
+  // 只有当搜索框展开并且按下Tab键时才处理
+  if (e.key === 'Tab' && isExpanded.value) {
+    // 阻止默认Tab键导航行为
+    e.preventDefault()
+    
+    // 确保搜索框获得焦点
+    if (document.activeElement !== searchInputRef.value) {
+      searchInputRef.value && searchInputRef.value.focus()
+    }
+    
+    // 获取当前引擎索引
+    const currentIndex = searchEngines.findIndex(engine => engine.name === selectedEngine.value)
+    // 循环切换到下一个引擎
+    const nextIndex = (currentIndex + 1) % searchEngines.length
+    
+    // 设置新的搜索引擎
+    selectedEngine.value = searchEngines[nextIndex].name
+  }
+}
+
 // 组件挂载时获取背景图片
 onMounted(() => {
   // 立即设置时间显示就绪状态
@@ -498,16 +524,17 @@ onMounted(() => {
     }
   })
   
-  // 监听键盘事件
-  window.addEventListener('keydown', handleKeyDown)
-  
   // 监听窗口大小变化，更新搜索建议宽度
   window.addEventListener('resize', updateSuggestionsWidth)
+  
+  // 添加全局Tab键事件处理，彻底防止Tab键导航
+  window.addEventListener('keydown', handleGlobalKeyDown, true) // 使用捕获阶段来确保我们的处理器先于其他处理器执行
 })
 
 // 组件卸载时移除事件监听
 onUnmounted(() => {
-  window.removeEventListener('keydown', handleKeyDown)
+  // 移除全局事件监听
+  window.removeEventListener('keydown', handleGlobalKeyDown, true)
   window.removeEventListener('resize', updateSuggestionsWidth)
   if (debounceTimer.value) clearTimeout(debounceTimer.value)
 })

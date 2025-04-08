@@ -272,7 +272,16 @@
     <div class="qrcode-container">
       <!-- 二维码显示区域 -->
       <div class="qrcode-wrapper">
-        <div ref="qrcodeRef" class="qrcode"></div>
+        <!-- 添加加载指示器 -->
+        <div v-if="isGenerating" class="qrcode-loading">
+          <el-icon class="is-loading"><Loading /></el-icon>
+          <span>正在生成...</span>
+        </div>
+        <!-- 添加刷新按钮 -->
+        <div class="refresh-button" v-if="!isGenerating" @click="forceRefreshQRCode">
+          <el-icon><Refresh /></el-icon>
+        </div>
+        <div ref="qrcodeRef" class="qrcode" :class="{ 'is-generating': isGenerating }"></div>
         <div class="current-text" v-if="form.contentType === 'text' && tags.length > 0">
           <el-tooltip
             effect="dark"
@@ -314,7 +323,7 @@
 import { ref, reactive, watch, onMounted, computed, onUnmounted, nextTick } from 'vue'
 import QRCode from 'qrcode'
 import { saveAs } from 'file-saver'
-import { ArrowDown, Download, Document } from '@element-plus/icons-vue'
+import { ArrowDown, Download, Document, Loading, Refresh } from '@element-plus/icons-vue'
 import JSZip from 'jszip'
 import { ElMessage, ElLoading } from 'element-plus'
 
@@ -331,7 +340,12 @@ const debounce = (fn, delay) => {
 
 // 添加深度比较函数
 const isEqual = (obj1, obj2) => {
-  return JSON.stringify(obj1) === JSON.stringify(obj2)
+  try {
+    return JSON.stringify(obj1) === JSON.stringify(obj2);
+  } catch (e) {
+    // 如果序列化失败（例如循环引用），直接返回false以确保更新
+    return false;
+  }
 }
 
 const qrcodeRef = ref(null)
@@ -525,9 +539,14 @@ const generateContent = () => {
 const validateContent = () => {
   const content = generateContent()
   
+  if (!content || content.trim() === '') {
+    isContentValid.value = false;
+    return '';
+  }
+  
   // 根据不同内容类型验证是否有效
   if (form.contentType === 'text') {
-    isContentValid.value = form.contentType === 'text' && tags.value.length > 0;
+    isContentValid.value = tags.value.length > 0 && selectedTagIndex.value >= 0;
   } else if (form.contentType === 'url') {
     isContentValid.value = form.url && form.url.trim() !== '' && form.url !== 'https://';
   } else if (form.contentType === 'email') {
@@ -559,6 +578,8 @@ const generateQRCode = async () => {
       qrcodeRef.value.innerHTML = '';
       canvas.value = null;
     }
+    lastContent = '';
+    lastOptions = null;
     return;
   }
 
@@ -577,25 +598,36 @@ const generateQRCode = async () => {
     }
   }
 
+  // 更严格的内容比较
+  const contentChanged = content !== lastContent;
+  // 对选项进行更直接的比较
+  const optionsChanged = !lastOptions || 
+                         options.errorCorrectionLevel !== lastOptions.errorCorrectionLevel || 
+                         options.width !== lastOptions.width || 
+                         options.color.dark !== lastOptions.color.dark || 
+                         options.color.light !== lastOptions.color.light;
+
   // 检查内容和选项是否与上次相同，如果相同则不重新生成
-  if (content === lastContent && isEqual(options, lastOptions)) {
-    return
+  if (!contentChanged && !optionsChanged) {
+    return;
   }
 
-  // 更新缓存
-  lastContent = content
-  lastOptions = JSON.parse(JSON.stringify(options))
+  // 更新缓存前先设置loading状态
+  isGenerating.value = true;
 
   try {
-    isGenerating.value = true // 设置生成状态
+    // 强制在下一个渲染周期更新UI
+    await nextTick();
+    
+    // 更新缓存
+    lastContent = content;
+    lastOptions = { ...options };
 
     if (qrcodeRef.value) {
-      // 仅当Canvas不存在时才创建新的
-      if (!canvas.value) {
-        canvas.value = document.createElement('canvas')
-        qrcodeRef.value.innerHTML = ''
-        qrcodeRef.value.appendChild(canvas.value)
-      }
+      // 每次都创建新的Canvas以确保完全刷新
+      canvas.value = document.createElement('canvas');
+      qrcodeRef.value.innerHTML = '';
+      qrcodeRef.value.appendChild(canvas.value);
       
       // 生成QR码，使用 Promise 并添加超时处理
       await new Promise((resolve, reject) => {
@@ -608,29 +640,64 @@ const generateQRCode = async () => {
           if (error) reject(error)
           else resolve()
         })
-      })
+      });
+      
+      // 确保生成后反馈给用户
+      console.log('QR码已更新:', content.substring(0, 30) + (content.length > 30 ? '...' : ''));
     }
   } catch (error) {
     console.error('生成二维码时出错：', error)
     // 显示错误提示
     ElMessage.error('生成二维码失败，请稍后重试')
+    // 清空缓存，确保下次能重新生成
+    lastContent = '';
+    lastOptions = null;
   } finally {
-    isGenerating.value = false // 重置生成状态
+    isGenerating.value = false; // 重置生成状态
   }
 }
 
-// 创建防抖版本的生成函数
-const debouncedGenerateQRCode = debounce(generateQRCode, 300)
+// 记录定时器
+let resizeTimer = null;
+
+// 创建防抖版本的生成函数，减少延迟时间
+const debouncedGenerateQRCode = debounce(generateQRCode, 200);
+
+// 强制刷新二维码的方法，用于用户主动刷新
+const forceRefreshQRCode = () => {
+  // 清空缓存状态
+  lastContent = '';
+  lastOptions = null;
+  // 直接调用生成函数而不是防抖版本
+  generateQRCode();
+};
+
+// 清除操作，清理残留的定时器
+const cleanup = () => {
+  if (resizeTimer) {
+    clearTimeout(resizeTimer);
+    resizeTimer = null;
+  }
+};
 
 // 修改窗口大小处理函数，使用防抖
-const handleResize = debounce(() => {
-  // 只有当窗口尺寸变化超过一定阈值才重新生成
-  const currentWidth = window.innerWidth
-  if (Math.abs(currentWidth - lastWindowWidth) > 50) {
-    lastWindowWidth = currentWidth
-    generateQRCode()
+const handleResize = () => {
+  // 清除之前的timer
+  if (resizeTimer) {
+    clearTimeout(resizeTimer);
   }
-}, 200)
+  
+  // 设置新的timer，减少频繁触发
+  resizeTimer = setTimeout(() => {
+    const currentWidth = window.innerWidth;
+    if (Math.abs(currentWidth - lastWindowWidth) > 50) {
+      lastWindowWidth = currentWidth;
+      // 直接调用非防抖版本，以保证立即响应窗口大小变化
+      generateQRCode();
+    }
+    resizeTimer = null;
+  }, 200);
+};
 
 // 记录上一次窗口宽度
 let lastWindowWidth = window.innerWidth
@@ -640,8 +707,11 @@ watch(() => [
   form.contentType,
   selectedTagIndex.value
 ], () => {
-  debouncedGenerateQRCode()
-}, { immediate: true })
+  // 内容类型或当前标签改变时，清空缓存强制重新生成
+  lastContent = '';
+  lastOptions = null;
+  debouncedGenerateQRCode();
+}, { immediate: true });
 
 // 深度监听表单变化，使用防抖
 watch(() => ({
@@ -672,41 +742,53 @@ const getSafeFileName = (text, maxLength = 50) => {
 }
 // 下载二维码
 const downloadQRCode = async (format) => {
+  // 首先确保二维码是最新的
   const content = validateContent()
   if (!content) return
 
-  const options = {
-    errorCorrectionLevel: form.errorCorrectionLevel,
-    margin: 1,
-    width: form.size, // 使用用户选择的尺寸
-    color: {
-      dark: form.foreground,
-      light: form.background
-    }
-  }
-
   try {
-    // 使用内容作为文件名
-    const fileName = getSafeFileName(content);
-    
-    if (format === 'png') {
-      // 添加超时处理
-      const dataUrl = await Promise.race([
-        QRCode.toDataURL(content, options),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('下载超时')), 10000))
-      ])
-      saveAs(dataUrl, `${fileName}.png`)
-    } else if (format === 'svg') {
-      // 添加超时处理
-      const svgString = await Promise.race([
-        QRCode.toString(content, {
-          ...options,
-          type: 'svg'
-        }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('下载超时')), 10000))
-      ])
-      const blob = new Blob([svgString], { type: 'image/svg+xml' })
-      saveAs(blob, `${fileName}.svg`)
+    // 显示加载提示
+    const loadingInstance = ElLoading.service({
+      text: `正在准备${format.toUpperCase()}格式二维码...`,
+      background: 'rgba(255, 255, 255, 0.7)'
+    })
+
+    // 设置更高质量的选项
+    const options = {
+      errorCorrectionLevel: form.errorCorrectionLevel,
+      margin: 2,
+      width: Math.max(form.size, 400), // 确保下载的图片足够清晰
+      color: {
+        dark: form.foreground,
+        light: form.background
+      }
+    }
+
+    try {
+      // 使用内容作为文件名
+      const fileName = getSafeFileName(content);
+      
+      if (format === 'png') {
+        // 添加超时处理
+        const dataUrl = await Promise.race([
+          QRCode.toDataURL(content, options),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('下载超时')), 10000))
+        ])
+        saveAs(dataUrl, `${fileName}.png`)
+      } else if (format === 'svg') {
+        // 添加超时处理
+        const svgString = await Promise.race([
+          QRCode.toString(content, {
+            ...options,
+            type: 'svg'
+          }),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('下载超时')), 10000))
+        ])
+        const blob = new Blob([svgString], { type: 'image/svg+xml' })
+        saveAs(blob, `${fileName}.svg`)
+      }
+    } finally {
+      loadingInstance.close()
     }
   } catch (error) {
     console.error('下载QR码时出错：', error)
@@ -717,17 +799,7 @@ const downloadQRCode = async (format) => {
 // 批量下载二维码
 const batchDownload = async (format) => {
   if (!tags.value || tags.value.length === 0) return
-
-  const options = {
-    errorCorrectionLevel: form.errorCorrectionLevel,
-    margin: 1,
-    width: form.size,
-    color: {
-      dark: form.foreground,
-      light: form.background
-    }
-  }
-
+  
   try {
     // 创建新的JSZip实例
     const zip = new JSZip();
@@ -739,6 +811,17 @@ const batchDownload = async (format) => {
     })
     
     try {
+      // 设置更高质量的选项
+      const options = {
+        errorCorrectionLevel: form.errorCorrectionLevel,
+        margin: 2,
+        width: Math.max(form.size, 400), // 确保下载的图片足够清晰
+        color: {
+          dark: form.foreground,
+          light: form.background
+        }
+      }
+      
       // 添加所有二维码到zip文件，使用Promise.all并添加超时处理
       const generatePromises = tags.value.map(async (text, i) => {
         if (!text || !text.trim()) return;
@@ -810,7 +893,7 @@ const batchDownload = async (format) => {
           level: 6
         }
       });
-      saveAs(zipBlob, `QR_code.zip`);
+      saveAs(zipBlob, `QR_codes_${new Date().toISOString().slice(0,10)}.zip`);
     } finally {
       // 无论成功失败都关闭加载提示
       loadingInstance.close();
@@ -838,12 +921,51 @@ onMounted(() => {
   // 添加带防抖的resize监听器
   window.addEventListener('resize', handleResize)
   lastWindowWidth = window.innerWidth
+  
+  // 移动设备检测
+  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  if (isMobile) {
+    // 移动设备上减小二维码默认尺寸以提高性能
+    form.size = Math.min(form.size, 250);
+  }
 })
 
 // 组件卸载时移除事件监听
 onUnmounted(() => {
   window.removeEventListener('resize', handleResize)
+  cleanup();
+  
+  // 清理定时器
+  if (debounceTimer.value) {
+    clearTimeout(debounceTimer.value);
+    debounceTimer.value = null;
+  }
+  
+  // 清除canvas引用
+  if (canvas.value) {
+    canvas.value = null;
+  }
+  
+  // 释放最后的缓存
+  lastContent = null;
+  lastOptions = null;
 })
+
+// 组件被激活时（如果在keep-alive中）
+onActivated && onActivated(() => {
+  // 重新生成二维码以确保显示正确
+  forceRefreshQRCode();
+  // 重新添加事件监听
+  window.addEventListener('resize', handleResize);
+  lastWindowWidth = window.innerWidth;
+});
+
+// 组件被停用时（如果在keep-alive中）
+onDeactivated && onDeactivated(() => {
+  // 清理资源
+  window.removeEventListener('resize', handleResize);
+  cleanup();
+});
 </script>
 
 <style lang="scss" scoped>
@@ -942,19 +1064,79 @@ onUnmounted(() => {
   margin: 0 auto;
   overflow: visible;
   transform: translateZ(0);
+  position: relative;
+  
+  .refresh-button {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background-color: rgba(255, 255, 255, 0.8);
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+    z-index: 5;
+    transition: all 0.2s ease;
+    
+    &:hover {
+      background-color: #f2f6fc;
+      transform: rotate(30deg);
+    }
+    
+    .el-icon {
+      font-size: 18px;
+      color: #409EFF;
+    }
+  }
+  
+  .qrcode-loading {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.7);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    border-radius: 4px;
+    
+    .el-icon {
+      font-size: 24px;
+      color: #409EFF;
+      margin-bottom: 8px;
+    }
+    
+    span {
+      font-size: 14px;
+      color: #606266;
+    }
+  }
   
   .qrcode {
     display: flex;
     justify-content: center;
     align-items: center;
     margin-bottom: 0.5rem;
-    overflow: visible;
+    position: relative;
+    min-height: 150px;
+    
+    &.is-generating {
+      opacity: 0.6;
+    }
     
     canvas {
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
       border-radius: 4px;
       display: block;
       max-width: 100%;
+      transition: all 0.3s ease;
     }
   }
   

@@ -20,6 +20,12 @@
       <div v-if="form.contentType === 'text'">
         <el-form-item label="文本内容">
           <div class="tag-input-container">
+            <div class="tags-header">
+              <span class="tags-title">历史内容</span>
+              <el-button type="text" size="small" class="clear-history" @click="clearAllTags">
+                清空历史
+              </el-button>
+            </div>
             <div class="tags-container">
               <el-tag
                 v-for="(tag, index) in tags"
@@ -348,6 +354,9 @@ const isEqual = (obj1, obj2) => {
   }
 }
 
+// 本地存储键名
+const STORAGE_KEY = 'qrcode_generator_history';
+
 const qrcodeRef = ref(null)
 const canvas = ref(null)
 const isContentValid = ref(false)
@@ -365,6 +374,43 @@ const isInputVisible = ref(false)
 const inputValue = ref('')
 const tagInputRef = ref(null)
 
+// 从本地存储加载历史记录
+const loadTagsFromStorage = () => {
+  try {
+    const savedTags = localStorage.getItem(STORAGE_KEY);
+    if (savedTags) {
+      tags.value = JSON.parse(savedTags);
+      if (tags.value.length > 0) {
+        selectTag(0);
+      }
+    }
+  } catch (error) {
+    console.error('加载历史记录失败:', error);
+  }
+};
+
+// 保存标签到本地存储
+const saveTagsToStorage = () => {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(tags.value));
+  } catch (error) {
+    console.error('保存历史记录失败:', error);
+  }
+};
+
+// 清空所有历史记录
+const clearAllTags = () => {
+  ElMessage.info('已清空所有历史记录');
+  tags.value = [];
+  selectedTagIndex.value = -1;
+  saveTagsToStorage();
+  // 清空二维码显示
+  if (qrcodeRef.value) {
+    qrcodeRef.value.innerHTML = '';
+    canvas.value = null;
+  }
+};
+
 // 显示输入框
 const showInput = () => {
   isInputVisible.value = true
@@ -381,11 +427,19 @@ const handleInputConfirm = () => {
       tags.value[editingTagIndex.value] = inputValue.value.trim()
       editingTagIndex.value = -1
     } else {
-      // 添加新标签
-      tags.value.push(inputValue.value.trim())
-      // 选择新添加的标签
-      selectTag(tags.value.length - 1)
+      // 添加新标签，检查是否已存在
+      const newTag = inputValue.value.trim();
+      if (!tags.value.includes(newTag)) {
+        tags.value.push(newTag)
+        // 选择新添加的标签
+        selectTag(tags.value.length - 1)
+      } else {
+        // 如果已存在，选择已有标签
+        selectTag(tags.value.findIndex(tag => tag === newTag));
+        ElMessage.info('此内容已存在');
+      }
     }
+    saveTagsToStorage(); // 保存到本地存储
   }
   isInputVisible.value = false
   inputValue.value = ''
@@ -401,6 +455,7 @@ const removeTag = (index) => {
     // 如果删除的标签在选中标签之前，调整选中标签的索引
     selectedTagIndex.value--
   }
+  saveTagsToStorage(); // 保存到本地存储
 }
 
 // 选择标签
@@ -905,13 +960,18 @@ const batchDownload = async (format) => {
 }
 
 onMounted(() => {
+  // 从本地存储加载历史记录
+  loadTagsFromStorage();
+  
   // 如果有已存在的文本，转换为标签
-  if (form.text) {
+  if (form.text && tags.value.length === 0) {
     const lines = form.text.split('\n').filter(line => line.trim() !== '')
     if (lines.length > 0) {
       tags.value = lines
       // 选择第一个标签
       selectTag(0)
+      // 保存到本地存储
+      saveTagsToStorage();
     }
   }
   
@@ -965,6 +1025,14 @@ onDeactivated && onDeactivated(() => {
   // 清理资源
   window.removeEventListener('resize', handleResize);
   cleanup();
+});
+
+// 表单类型变化时自动保存相关内容
+watch(() => form.contentType, (newType, oldType) => {
+  if (oldType === 'text') {
+    // 离开文本模式时保存标签
+    saveTagsToStorage();
+  }
 });
 </script>
 
@@ -1288,6 +1356,30 @@ onDeactivated && onDeactivated(() => {
   padding: 8px;
   background-color: #fff;
   min-height: 120px;
+  
+  .tags-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    padding: 0 4px;
+    
+    .tags-title {
+      font-size: 14px;
+      color: #909399;
+      font-weight: 500;
+    }
+    
+    .clear-history {
+      font-size: 12px;
+      padding: 2px 0;
+      color: #F56C6C;
+      
+      &:hover {
+        opacity: 0.8;
+      }
+    }
+  }
   
   .tags-container {
     display: flex;

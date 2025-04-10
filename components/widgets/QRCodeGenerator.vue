@@ -547,7 +547,7 @@ const form = reactive({
   },
   foreground: '#000000',
   background: '#ffffff',
-  errorCorrectionLevel: 'M',
+  errorCorrectionLevel: 'H',
   size: 250 // 默认尺寸
 })
 
